@@ -9,7 +9,6 @@ export interface Payment {
   uri?: string;          // for receipt image URI
   localPath?: string;    // for local storage path
   isUploaded: boolean;   // track upload status
-  timestamp: number;
 }
 
 export interface GroupedPayments {

@@ -21,7 +21,7 @@ const OverallPayment: React.FC = () => {
       
       // Group receipts by month
       const grouped = receipts.reduce((acc: { [key: string]: Payment[] }, payment) => {
-        const date = new Date(payment.timestamp);
+        const date = new Date(payment.date);
         const monthYear = date.toLocaleString('default', { month: 'long', year: 'numeric' });
         
         if (!acc[monthYear]) {
@@ -42,7 +42,7 @@ const OverallPayment: React.FC = () => {
 
         return {
           title,
-          data: data.sort((a, b) => b.timestamp - a.timestamp),
+          data: data.sort((a, b) => b.date - a.date),
           totalAmount
         };
       });
@@ -58,7 +58,7 @@ const OverallPayment: React.FC = () => {
   };
 
   const renderReceiptItem = ({ item }: { item: Payment }) => {
-    const date = new Date(item.timestamp).toLocaleDateString();
+    const date = new Date(item.date).toLocaleDateString();
 
     return (
       <View style={styles.paymentItem}>

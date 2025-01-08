@@ -5,30 +5,27 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import { Camera } from 'expo-camera';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Payment } from '@/types/payment';
+import { CONSTANTS, Payment } from '@/types/payment';
+import { StorageUtils } from '@/utils/storage';
 
 
 
 const InputScreen: React.FC = () => {
+  const params = useLocalSearchParams();
+
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [amountType, setAmountType] = useState<'total' | 'specific'>('total');
   const [totalAmount, setTotalAmount] = useState('');
   const [specificAmount, setSpecificAmount] = useState('');
-  const params = useLocalSearchParams();
-  const existingPayment = useMemo<Payment | null>(() => {
-    if (!params.existingPayment) return null;
-    try {
-      return JSON.parse(params.existingPayment as string) as Payment;
-    } catch (e) {
-      console.error('Error parsing existingPayment:', e);
-      return null;
-    }
-  }, [params.existingPayment]);
+  const [existingPayment, setExistingPayment] = useState<Payment | null>(null);
+
+
+  const [paidBy, setPaidBy] = useState<string>(CONSTANTS.PAYERS[0]);
+  const [amount, setAmount] = useState(0);
+    const [amountType, setAmountType] = useState<'total' | 'specific'>('total');
 
   const [date, setDate] = useState(() =>
-    existingPayment ? new Date(existingPayment.timestamp) : new Date()
-  );
-  const [receipt, setReceipt] = useState<string | null>(
+    existingPayment ? new Date(existingPayment.date) : new Date()
+  );  const [receipt, setReceipt] = useState<string | null>(
     existingPayment?.uri ?? null
   );
   const [title, setTitle] = useState(existingPayment?.title || '');
@@ -143,10 +140,53 @@ const InputScreen: React.FC = () => {
     }
   };
 
-  function handleSubmit(event: GestureResponderEvent): void {
-    throw new Error('Function not implemented.');
-  }
+  useEffect(() => {
+    if (params.existingPayment) {
+        const payment = JSON.parse(params.existingPayment as string) as Payment;
+        setExistingPayment(payment);
+        setTitle(payment.title);
+        setPaidBy(payment.whoPaid);
+        setAmount(payment.amount);
+        setAmountType(payment.amountType);
+    }
+}, [params]);
 
+  async function handleSubmit(event: GestureResponderEvent): Promise<void> {
+    try {
+        // Validate required fields
+        if (!paidBy || amount === 0) {
+            Alert.alert('Error', 'Please fill in all required fields');
+            return;
+        }
+
+        const newPayment: Omit<Payment, 'id' | 'isUploaded' | 'uri' | 'localPath'> = {
+          title: title || 'Untitled',
+          whoPaid: paidBy,
+          amount: amount,
+          amountType: amountType,
+          date: Date.now(),
+        };
+
+        if (existingPayment) {
+            // Update existing payment
+            const updatedPayment = {
+                ...existingPayment,
+                ...newPayment,
+            };
+            await StorageUtils.updatePayment(updatedPayment);
+        } else {
+            // Create new payment
+            await StorageUtils.savePayment(newPayment);
+        }
+
+        // Navigate to summary screen
+        router.push('../(tabs)/summary');
+        
+    } catch (error) {
+        console.error('Error saving payment:', error);
+        Alert.alert('Error', 'Failed to save payment. Please try again.');
+    }
+}
   return (
     <ScrollView style={styles.container}>
       <View style={styles.formContainer}>
