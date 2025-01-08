@@ -18,7 +18,7 @@ export default function Page() {
     useEffect(() => {
         const subscription = AppState.addEventListener('change', nextAppState => {
             if (nextAppState === 'active') {
-                UploadService.uploadPendingReceipts();
+                UploadService.uploadPendingPayments();
             }
         });
 

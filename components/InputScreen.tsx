@@ -21,15 +21,15 @@ const InputScreen: React.FC = () => {
 
   const [paidBy, setPaidBy] = useState<string>(CONSTANTS.PAYERS[0]);
   const [amount, setAmount] = useState(0);
-    const [amountType, setAmountType] = useState<'total' | 'specific'>('total');
+  const [amountType, setAmountType] = useState<'total' | 'specific'>('total');
 
   const [date, setDate] = useState(() =>
     existingPayment ? new Date(existingPayment.date) : new Date()
-  );  const [receipt, setReceipt] = useState<string | null>(
+  ); const [receipt, setReceipt] = useState<string | null>(
     existingPayment?.uri ?? null
   );
   const [title, setTitle] = useState(existingPayment?.title || '');
-  const [whoPaid, setWhoPaid] = useState(existingPayment?.whoPaid || '');
+  const [whoPaid, setWhoPaid] = useState(existingPayment?.whoPaid || 'Person 1');
 
   // Add useEffect to update receipt when existingPayment changes
   useEffect(() => {
@@ -142,29 +142,35 @@ const InputScreen: React.FC = () => {
 
   useEffect(() => {
     if (params.existingPayment) {
-        const payment = JSON.parse(params.existingPayment as string) as Payment;
-        setExistingPayment(payment);
-        setTitle(payment.title);
-        setPaidBy(payment.whoPaid);
-        setAmount(payment.amount);
-        setAmountType(payment.amountType);
+      const payment = JSON.parse(params.existingPayment as string) as Payment;
+      setExistingPayment(payment);
+      setTitle(payment.title);
+      setPaidBy(payment.whoPaid);
+      setAmount(payment.amount);
+      setAmountType(payment.amountType);
     }
-}, [params]);
+  }, [params]);
 
   async function handleSubmit(event: GestureResponderEvent): Promise<void> {
     try {
+        // Get the numeric amount based on amount type
+        const numericAmount = amountType === 'total' 
+            ? parseFloat(totalAmount) || 0 
+            : parseFloat(specificAmount) || 0;
+
         // Validate required fields
-        if (!paidBy || amount === 0) {
+        if (!whoPaid || !numericAmount || numericAmount === 0) {
             Alert.alert('Error', 'Please fill in all required fields');
             return;
         }
 
         const newPayment: Omit<Payment, 'id' | 'isUploaded' | 'uri' | 'localPath'> = {
-          title: title || 'Untitled',
-          whoPaid: paidBy,
-          amount: amount,
-          amountType: amountType,
-          date: Date.now(),
+            title: title || 'Untitled',
+            whoPaid: whoPaid, // Use whoPaid instead of paidBy
+            amount: numericAmount,
+            amountType: amountType,
+            date: date.getTime(), // Use the selected date
+            uri: receipt || '', // Include the receipt if exists
         };
 
         if (existingPayment) {
