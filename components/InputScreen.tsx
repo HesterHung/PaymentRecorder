@@ -7,6 +7,7 @@ import { Camera } from 'expo-camera';
 import { router, useLocalSearchParams } from 'expo-router';
 import { CONSTANTS, Payment } from '@/types/payment';
 import { StorageUtils } from '@/utils/storage';
+import Toast from 'react-native-toast-message';
 
 
 
@@ -153,47 +154,68 @@ const InputScreen: React.FC = () => {
 
   async function handleSubmit(event: GestureResponderEvent): Promise<void> {
     try {
-        // Get the numeric amount based on amount type
-        const numericAmount = amountType === 'total' 
-            ? parseFloat(totalAmount) || 0 
-            : parseFloat(specificAmount) || 0;
+      const numericAmount = amountType === 'total'
+        ? parseFloat(totalAmount) || 0
+        : parseFloat(specificAmount) || 0;
 
-        // Validate required fields
-        if (!whoPaid || !numericAmount || numericAmount === 0) {
-            Alert.alert('Error', 'Please fill in all required fields');
-            return;
-        }
+      if (!whoPaid || !numericAmount || numericAmount === 0) {
+        Alert.alert('Error', 'Please fill in all required fields');
+        return;
+      }
 
-        const newPayment: Omit<Payment, 'id' | 'isUploaded' > = {
-            title: title || 'Untitled',
-            whoPaid: whoPaid, // Use whoPaid instead of paidBy
-            amount: numericAmount,
-            amountType: amountType,
-            date: date.getTime(), // Use the selected date
-            uri: receipt || '', // Include the receipt if exists
-            localPath: receipt || undefined
+      const newPayment: Omit<Payment, 'id' | 'isUploaded'> = {
+        title: title || 'Untitled',
+        whoPaid: whoPaid,
+        amount: numericAmount,
+        amountType: amountType,
+        date: date.getTime(),
+        uri: receipt || undefined,
+        localPath: receipt || undefined
+      };
+
+      if (existingPayment) {
+        const updatedPayment = {
+          ...existingPayment,
+          ...newPayment,
         };
+        await StorageUtils.updatePayment(updatedPayment);
+        Toast.show({
+          type: 'success',
+          text1: 'Success',
+          text2: 'Expense updated successfully',
+          position: 'bottom',
+          visibilityTime: 2000,
+        });
+      } else {
+        await StorageUtils.savePayment(newPayment);
+        Toast.show({
+          type: 'success',
+          text1: 'Expense saved successfully',
+          position: 'bottom',
+          visibilityTime: 2000,
+        });
+      }
 
-        if (existingPayment) {
-            // Update existing payment
-            const updatedPayment = {
-                ...existingPayment,
-                ...newPayment,
-            };
-            await StorageUtils.updatePayment(updatedPayment);
-        } else {
-            // Create new payment
-            await StorageUtils.savePayment(newPayment);
-        }
+      // Reset form
+      setTitle('');
+      setWhoPaid(CONSTANTS.PAYERS[0]);
+      setAmountType('total');
+      setTotalAmount('');
+      setSpecificAmount('');
+      setDate(new Date());
+      setReceipt(null);
 
-        // Navigate to summary screen
-        router.push('../(tabs)/summary');
-        
     } catch (error) {
-        console.error('Error saving payment:', error);
-        Alert.alert('Error', 'Failed to save payment. Please try again.');
+      console.error('Error saving payment:', error);
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: 'Failed to save expense. Please try again.',
+        position: 'bottom',
+        visibilityTime: 2000,
+      });
     }
-}
+  }
   return (
     <ScrollView style={styles.container}>
       <View style={styles.formContainer}>

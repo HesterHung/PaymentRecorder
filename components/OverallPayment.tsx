@@ -75,7 +75,7 @@ const OverallPayment: React.FC = () => {
             { backgroundColor: item.whoPaid === CONSTANTS.PAYERS[0] ? '#007AFF' : '#34C759' }
           ]}>
             <Text style={styles.amountText}>
-            ${displayAmount.toFixed(2)}
+                        ${displayAmount.toFixed(2)}
             </Text>
           </View>
         </View>
