@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, Dimensions, TouchableOpacity } from 'react-native';
 import { StorageUtils } from '../utils/storage';
 import { Ionicons } from '@expo/vector-icons';
-import { Payment, GroupedPayments, Receipt, CONSTANTS } from '../types/receipt';
+import { Payment, GroupedPayments, CONSTANTS } from '../types/payment';
 
 const { width } = Dimensions.get('window');
 
@@ -17,17 +17,17 @@ const OverallPayment: React.FC = () => {
 
   const loadReceipts = async () => {
     try {
-      const receipts = await StorageUtils.getStoredReceipts();
+      const receipts = await StorageUtils.getStoredPayments();
       
       // Group receipts by month
-      const grouped = receipts.reduce((acc: { [key: string]: Receipt[] }, receipt) => {
-        const date = new Date(receipt.timestamp);
+      const grouped = receipts.reduce((acc: { [key: string]: Payment[] }, payment) => {
+        const date = new Date(payment.timestamp);
         const monthYear = date.toLocaleString('default', { month: 'long', year: 'numeric' });
         
         if (!acc[monthYear]) {
           acc[monthYear] = [];
         }
-        acc[monthYear].push(receipt);
+        acc[monthYear].push(payment);
         return acc;
       }, {});
 
@@ -57,7 +57,7 @@ const OverallPayment: React.FC = () => {
     }
   };
 
-  const renderReceiptItem = ({ item }: { item: Receipt }) => {
+  const renderReceiptItem = ({ item }: { item: Payment }) => {
     const date = new Date(item.timestamp).toLocaleDateString();
 
     return (

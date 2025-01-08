@@ -11,97 +11,86 @@ import {
 } from 'react-native';
 import { StorageUtils } from '../utils/storage';
 import { router } from 'expo-router';
+import { Payment } from '../types/payment'; // Import the Payment interface
 
 const { width } = Dimensions.get('window');
-// Calculate item size to fit exactly 3 items per row with minimal spacing
-const SPACING = 6; // Space between images
+const SPACING = 6;
 const ITEMS_PER_ROW = 3;
 const ITEM_SIZE = (width - (SPACING * (ITEMS_PER_ROW + 1))) / ITEMS_PER_ROW;
 
-type NavigationProp = {
-    navigate: (screen: string, params?: any) => void;
-};
-
-interface GroupedReceipts {
+interface GroupedPayments {
     title: string;
-    data: Array<{
-        id: string;
-        uri: string;
-        timestamp: number;
-        isUploaded: boolean;
-    }>;
+    data: Payment[];
 }
 
 export default function ReceiptBox() {
-    const [groupedReceipts, setGroupedReceipts] = useState<GroupedReceipts[]>([]);
+    const [groupedPayments, setGroupedPayments] = useState<GroupedPayments[]>([]);
 
     useEffect(() => {
-        loadReceipts();
+        loadPayments();
     }, []);
 
-    const loadReceipts = async () => {
-        const receipts = await StorageUtils.getStoredReceipts();
+    const loadPayments = async () => {
+        const payments = await StorageUtils.getStoredPayments();
 
-        // Group receipts by month
-        const grouped = receipts.reduce((acc: { [key: string]: any[] }, receipt) => {
-            const date = new Date(receipt.timestamp);
+        // Only process payments that have images
+        const paymentsWithImages = payments.filter(payment => payment.uri);
+
+        // Group payments by month
+        const grouped = paymentsWithImages.reduce((acc: { [key: string]: Payment[] }, payment) => {
+            const date = new Date(payment.date);
             const monthYear = date.toLocaleString('default', { month: 'long', year: 'numeric' });
 
             if (!acc[monthYear]) {
                 acc[monthYear] = [];
             }
-            acc[monthYear].push(receipt);
+            acc[monthYear].push(payment);
             return acc;
         }, {});
 
-        // Convert to array format
+        // Convert to array format and sort
         const groupedArray = Object.entries(grouped).map(([title, data]) => ({
             title,
-            data: data.sort((a, b) => b.timestamp - a.timestamp)
+            data: data.sort((a, b) => b.date - a.date)
         }));
 
-        setGroupedReceipts(groupedArray);
+        setGroupedPayments(groupedArray);
     };
 
-    // In ReceiptBox component
-    const handleImagePress = (receipt: {
-        id: string;
-        uri: string;
-        timestamp: number;
-        isUploaded: boolean;
-    }) => {
+    const handleImagePress = (payment: Payment) => {
         router.push({
             pathname: "/(tabs)/standard-input",
             params: {
-                existingReceipt: JSON.stringify({
-                    ...receipt,
-                    source: 'receipt-box'  // Add source parameter
+                existingPayment: JSON.stringify({
+                    ...payment,
+                    source: 'receipt-box'
                 })
             }
         });
     };
 
-
-    const renderItem = ({ item }: { item: GroupedReceipts }) => (
+    const renderItem = ({ item }: { item: GroupedPayments }) => (
         <View style={styles.monthSection}>
             <Text style={styles.monthTitle}>{item.title}</Text>
             <View style={styles.imageGrid}>
-                {item.data.map((receipt, index) => (
+                {item.data.map((payment, index) => (
                     <TouchableOpacity
-                        key={receipt.id}
+                        key={payment.id}
                         style={[
                             styles.imageContainer,
                             (index + 1) % 3 === 0 ? { marginRight: 0 } : null
                         ]}
-                        onPress={() => handleImagePress(receipt)}
-                        disabled={!receipt.isUploaded} // Optional: prevent clicking while uploading
+                        onPress={() => handleImagePress(payment)}
+                        disabled={!payment.isUploaded}
                     >
-                        <Image
-                            source={{ uri: receipt.uri }}
-                            style={styles.image}
-                            resizeMode="cover"
-                        />
-                        {!receipt.isUploaded && (
+                        {payment.uri && (
+                            <Image
+                                source={{ uri: payment.uri }}
+                                style={styles.image}
+                                resizeMode="cover"
+                            />
+                        )}
+                        {!payment.isUploaded && (
                             <View style={styles.uploadingOverlay}>
                                 <ActivityIndicator color="white" />
                             </View>
@@ -114,7 +103,7 @@ export default function ReceiptBox() {
 
     return (
         <FlatList
-            data={groupedReceipts}
+            data={groupedPayments}
             renderItem={renderItem}
             keyExtractor={item => item.title}
             contentContainerStyle={styles.container}

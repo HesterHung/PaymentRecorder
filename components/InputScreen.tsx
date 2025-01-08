@@ -5,7 +5,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import { Camera } from 'expo-camera';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Receipt } from '@/types/receipt';
+import { Payment } from '@/types/payment';
 
 
 
@@ -15,36 +15,36 @@ const InputScreen: React.FC = () => {
   const [totalAmount, setTotalAmount] = useState('');
   const [specificAmount, setSpecificAmount] = useState('');
   const params = useLocalSearchParams();
-  const existingReceipt = useMemo<Receipt | null>(() => {
-    if (!params.existingReceipt) return null;
+  const existingPayment = useMemo<Payment | null>(() => {
+    if (!params.existingPayment) return null;
     try {
-      return JSON.parse(params.existingReceipt as string) as Receipt;
+      return JSON.parse(params.existingPayment as string) as Payment;
     } catch (e) {
-      console.error('Error parsing existingReceipt:', e);
+      console.error('Error parsing existingPayment:', e);
       return null;
     }
-  }, [params.existingReceipt]);
+  }, [params.existingPayment]);
 
   const [date, setDate] = useState(() =>
-    existingReceipt ? new Date(existingReceipt.timestamp) : new Date()
+    existingPayment ? new Date(existingPayment.timestamp) : new Date()
   );
   const [receipt, setReceipt] = useState<string | null>(
-    existingReceipt ? existingReceipt.uri : null
+    existingPayment?.uri ?? null
   );
-  const [title, setTitle] = useState(existingReceipt?.title || '');
-  const [whoPaid, setWhoPaid] = useState(existingReceipt?.whoPaid || '');
+  const [title, setTitle] = useState(existingPayment?.title || '');
+  const [whoPaid, setWhoPaid] = useState(existingPayment?.whoPaid || '');
 
-  // Add useEffect to update receipt when existingReceipt changes
+  // Add useEffect to update receipt when existingPayment changes
   useEffect(() => {
-    if (existingReceipt?.uri) {
-      setReceipt(existingReceipt.uri);
+    if (existingPayment?.uri) {
+      setReceipt(existingPayment.uri);
     }
-  }, [existingReceipt]);
+  }, [existingPayment]);
 
   // Update your back button handler
   useEffect(() => {
     const backAction = () => {
-      if (existingReceipt?.source === 'receipt-box') {
+      if (existingPayment?.source === 'receipt-box') {
         router.replace('/(tabs)/receipt-box');
       } else {
         router.replace('/');
@@ -58,7 +58,7 @@ const InputScreen: React.FC = () => {
     );
 
     return () => backHandler.remove();
-  }, [existingReceipt]);
+  }, [existingPayment]);
 
   const handleImageSelection = () => {
     if (Platform.OS === 'ios') {

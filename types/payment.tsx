@@ -1,19 +1,3 @@
-// types/receipts.ts
-export interface Receipt {
-  id: string;
-  uri: string;
-  timestamp: number;
-  isUploaded: boolean;
-  title?: string;
-  whoPaid?: string;
-  source?: string;
-}
-
-export interface GroupedReceipts {
-  title: string;
-  data: Receipt[];
-}
-
 export interface Payment {
   id: string;
   date: number;
@@ -21,8 +5,11 @@ export interface Payment {
   whoPaid: string;
   amount: number;
   amountType: 'total' | 'specific';
-  receipt?: string;
   source?: string;
+  uri?: string;          // for receipt image URI
+  localPath?: string;    // for local storage path
+  isUploaded: boolean;   // track upload status
+  timestamp: number;
 }
 
 export interface GroupedPayments {
@@ -31,13 +18,11 @@ export interface GroupedPayments {
   totalAmount: number;
 }
 
-// Common constants
 export const CONSTANTS = {
   PAYERS: ['Person1', 'Person2'] as const,
   AMOUNT_TYPES: ['total', 'specific'] as const,
   STORAGE_KEYS: {
-      RECEIPTS: 'stored_receipts',
-      PAYMENTS: 'stored_payments'
+    PAYMENTS: 'stored_payments'
   }
 } as const;
 

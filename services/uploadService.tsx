@@ -2,25 +2,25 @@ import { StorageUtils } from '../utils/storage';
 import NetInfo from '@react-native-community/netinfo';
 
 export const UploadService = {
-  async uploadPendingReceipts() {
+  async uploadPendingPayments() {
     const networkState = await NetInfo.fetch();
     
     if (!networkState.isConnected) {
       return;
     }
 
-    const receipts = await StorageUtils.getStoredReceipts();
-    const pendingReceipts = receipts.filter(receipt => !receipt.isUploaded);
+    const payments = await StorageUtils.getStoredPayments();
+    const pendingPayments = payments.filter(payment => !payment.isUploaded);
 
-    for (const receipt of pendingReceipts) {
+    for (const payment of pendingPayments) {
       try {
         // Implement your server upload logic here
         // const response = await uploadToServer(receipt.uri);
         
         // Mark as uploaded after successful upload
-        await StorageUtils.markAsUploaded(receipt.id);
+        await StorageUtils.markAsUploaded(payment.id);
       } catch (error) {
-        console.error('Upload failed for receipt:', receipt.id, error);
+        console.error('Upload failed for receipt:', payment.id, error);
       }
     }
   }

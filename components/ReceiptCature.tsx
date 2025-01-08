@@ -64,11 +64,21 @@ export default function ReceiptCapture() {
 
     const confirmPicture = async () => {
         if (capturedImage) {
+            const currentTimestamp = Date.now();
             try {
-                await StorageUtils.saveImage(capturedImage, paidBy); // You'll need to modify your storage util to handle this
+                // Create a new payment with the captured image
+                await StorageUtils.savePaymentWithImage({
+                    title: "", // You can set a default title
+                    whoPaid: paidBy,
+                    amount: 0, // Default amount that can be edited later
+                    amountType: "total", // Default type
+                    date: Date.now(),
+                    timestamp: currentTimestamp, // Add this line
+                }, capturedImage);
+                
                 router.back();
             } catch (error) {
-                console.error('Error saving image:', error);
+                console.error('Error saving payment with image:', error);
             }
         }
     };
