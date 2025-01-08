@@ -10,7 +10,7 @@ interface ReceiptImage {
 }
 
 export const StorageUtils = {
-  async saveImage(imageUri: string): Promise<ReceiptImage> {
+  async saveImage(imageUri: string, paidBy: string): Promise<ReceiptImage> {
     const timestamp = Date.now();
     const filename = `receipt_${timestamp}.jpg`;
     const localPath = `${FileSystem.documentDirectory}receipts/${filename}`;

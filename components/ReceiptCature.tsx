@@ -13,23 +13,14 @@ export default function ReceiptCapture() {
     const [facing, setFacing] = useState<CameraType>('back');
     const cameraRef = useRef<CameraView>(null);  // Change the ref type to CameraView
     const [torch, setTorch] = useState(false);
+    const [paidBy, setPaidBy] = useState('Person A'); // Default value can be fetched from settings later
 
 
 
-    if (!permission) {
-        return <View />;
-    }
 
-    if (!permission.granted) {
-        return (
-            <View style={styles.container}>
-                <Text style={styles.text}>We need your permission to show the camera</Text>
-                <TouchableOpacity style={styles.button} onPress={requestPermission}>
-                    <Text style={styles.buttonText}>Grant Permission</Text>
-                </TouchableOpacity>
-            </View>
-        );
-    }
+    const togglePayer = () => {
+        setPaidBy(current => current === 'Person A' ? 'Person B' : 'Person A');
+    };
 
     const toggleTorch = () => {
         setTorch(torch === false ? true : false);
@@ -55,6 +46,7 @@ export default function ReceiptCapture() {
             try {
                 const result = await cameraRef.current.takePictureAsync({
                     quality: 0.8,
+                    shutterSound: false
                 });
 
                 if (result) {
@@ -73,7 +65,7 @@ export default function ReceiptCapture() {
     const confirmPicture = async () => {
         if (capturedImage) {
             try {
-                await StorageUtils.saveImage(capturedImage);
+                await StorageUtils.saveImage(capturedImage, paidBy); // You'll need to modify your storage util to handle this
                 router.back();
             } catch (error) {
                 console.error('Error saving image:', error);
@@ -95,6 +87,20 @@ export default function ReceiptCapture() {
                     >
                         <Ionicons name="camera-reverse" size={24} color="white" />
                         <Text style={styles.buttonText}>Retake</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[
+                            styles.previewButton,
+                            styles.payerButton,
+                            { backgroundColor: paidBy === 'Person A' ? '#007AFF' : '#FF9500' }
+                        ]}
+                        onPress={togglePayer}
+                    >
+                        <Ionicons
+                            name={paidBy === 'Person A' ? "person" : "person-outline"}
+                            size={24}
+                            color="white"
+                        />
                     </TouchableOpacity>
                     <TouchableOpacity
                         style={[styles.previewButton, styles.confirmButton]}
@@ -165,9 +171,9 @@ const styles = StyleSheet.create({
         position: 'absolute',
         top: 16,
         right: 16,
-        borderRadius: 20,
+        borderRadius: 30,
         paddingVertical: 8,
-        paddingHorizontal: 12,
+        paddingHorizontal: 10,
         backgroundColor: 'rgba(0, 0, 0, 0.3)',
     },
     iconButton: {
@@ -260,7 +266,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         paddingVertical: 12,
-        paddingHorizontal: 30,
+        paddingHorizontal: 12,
         borderRadius: 25,
         gap: 8,
     },
@@ -278,5 +284,9 @@ const styles = StyleSheet.create({
         borderRadius: 20,
         paddingVertical: 8,
         paddingHorizontal: 10,
+    },
+    payerButton: {
+        backgroundColor: '#007AFF',
+        minWidth: 80, // Ensure enough space for the text
     },
 });
