@@ -5,16 +5,9 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import { Camera } from 'expo-camera';
 import { router, useLocalSearchParams } from 'expo-router';
+import { Receipt } from '@/types/receipt';
 
-interface Receipt {
-  id: string;
-  uri: string;
-  timestamp: number;
-  isUploaded: boolean;
-  title?: string;
-  whoPaid?: string;
-  source?: string;
-}
+
 
 const InputScreen: React.FC = () => {
   const [showDatePicker, setShowDatePicker] = useState(false);

@@ -267,7 +267,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         paddingVertical: 12,
         paddingHorizontal: 12,
-        borderRadius: 25,
+        borderRadius: 23,
         gap: 8,
     },
     retakeButton: {
