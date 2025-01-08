@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Payment, GroupedPayments, CONSTANTS } from '../types/payment';
 
 const { width } = Dimensions.get('window');
+const peopleNumber = 2;
 
 const OverallPayment: React.FC = () => {
   const [groupedPayments, setGroupedPayments] = useState<GroupedPayments[]>([]);
@@ -33,12 +34,13 @@ const OverallPayment: React.FC = () => {
 
       // Calculate totals and convert to array format
       const groupedArray = Object.entries(grouped).map(([title, data]) => {
-        const totalAmount = data.reduce((sum, receipt) => {
-          // You might need to adjust this calculation based on your business logic
-          // This assumes you store the amount information in the receipt title or elsewhere
-          const amount = 0; // Replace with actual amount calculation
-          return sum + amount;
-        }, 0);
+        const totalAmount = data.reduce((sum, payment) => {
+          // For total amount type, divide by 2 since it's split between two people
+          const actualAmount = payment.amountType === 'total' 
+              ? payment.amount / peopleNumber
+              : payment.amount;
+          return sum + actualAmount;
+      }, 0);
 
         return {
           title,
@@ -60,6 +62,10 @@ const OverallPayment: React.FC = () => {
   const renderReceiptItem = ({ item }: { item: Payment }) => {
     const date = new Date(item.date).toLocaleDateString();
 
+    const displayAmount = item.amountType === 'total' 
+    ? item.amount / peopleNumber  // Split total amount
+    : item.amount;     // Use specific amount as is
+
     return (
       <View style={styles.paymentItem}>
         <View style={styles.paymentHeader}>
@@ -69,7 +75,7 @@ const OverallPayment: React.FC = () => {
             { backgroundColor: item.whoPaid === CONSTANTS.PAYERS[0] ? '#007AFF' : '#34C759' }
           ]}>
             <Text style={styles.amountText}>
-              ${/* Replace with actual amount calculation */}
+            ${displayAmount.toFixed(2)}
             </Text>
           </View>
         </View>
