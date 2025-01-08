@@ -164,13 +164,14 @@ const InputScreen: React.FC = () => {
             return;
         }
 
-        const newPayment: Omit<Payment, 'id' | 'isUploaded' | 'uri' | 'localPath'> = {
+        const newPayment: Omit<Payment, 'id' | 'isUploaded' > = {
             title: title || 'Untitled',
             whoPaid: whoPaid, // Use whoPaid instead of paidBy
             amount: numericAmount,
             amountType: amountType,
             date: date.getTime(), // Use the selected date
             uri: receipt || '', // Include the receipt if exists
+            localPath: receipt || undefined
         };
 
         if (existingPayment) {
