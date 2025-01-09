@@ -9,6 +9,8 @@ export interface Payment {
   serverUri: string | null; // Server URL after upload
   isUploaded: boolean;
   uploadError?: string | null;
+  uploadStatus: 'uploading' | 'uploaded' | 'error';
+
 }
 export interface GroupedPayments {
   title: string;

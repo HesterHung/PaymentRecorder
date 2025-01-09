@@ -24,4 +24,30 @@ export const UploadService = {
       }
     }
   }
+  
+};
+
+export const uploadToServer = async (localUri: string) => {
+  try {
+      // TODO: Replace with your actual server upload logic
+      // For example:
+      // const formData = new FormData();
+      // formData.append('image', {
+      //     uri: localUri,
+      //     type: 'image/jpeg',
+      //     name: 'receipt.jpg',
+      // });
+      // const response = await fetch('YOUR_API_ENDPOINT', {
+      //     method: 'POST',
+      //     body: formData,
+      // });
+      // return response.url;
+
+      // Simulated upload for example
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      return localUri; // In real implementation, return server URL
+  } catch (error) {
+      console.error('Upload error:', error);
+      throw error;
+  }
 };

@@ -8,6 +8,7 @@ import { captureRef } from 'react-native-view-shot';
 import { StorageUtils } from '../utils/storage';
 import * as FileSystem from 'expo-file-system';
 import { EventRegister } from 'react-native-event-listeners';
+import { uploadToServer } from '@/services/uploadService';
 
 export default function ReceiptCapture() {
     const [permission, requestPermission] = useCameraPermissions();
@@ -87,32 +88,6 @@ export default function ReceiptCapture() {
         }
     };
 
-    const uploadToServer = async (localUri: string) => {
-        try { //TODO
-            // Your server upload logic here
-            // For example:
-            // const formData = new FormData();
-            // formData.append('image', {
-            //     uri: localUri,
-            //     type: 'image/jpeg',
-            //     name: 'receipt.jpg',
-            // });
-            // const response = await fetch('YOUR_API_ENDPOINT', {
-            //     method: 'POST',
-            //     body: formData,
-            // });
-            // return response.url;
-
-            // Simulated upload for example
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            return localUri; // In real implementation, return server URL
-        } catch (error) {
-            console.error('Upload error:', error);
-            throw error;
-        }
-    };
-
-
     const retakePicture = () => {
         setCapturedImage(null);
     };
@@ -122,8 +97,8 @@ export default function ReceiptCapture() {
             try {
                 // 1. Save to permanent local storage
                 const localUri = await saveImageLocally(capturedImage);
-
-                // 2. Create payment record with local URI
+    
+                // 2. Create payment record with local URI and initial upload status
                 const newPayment = await StorageUtils.savePaymentWithImage({
                     title: "",
                     whoPaid: paidBy,
@@ -131,28 +106,30 @@ export default function ReceiptCapture() {
                     amountType: "total",
                     date: Date.now(),
                     isUploaded: false,
-                    uri: null,
+                    uploadStatus: 'uploading', // Add this new field
+                    uri: localUri,
                     serverUri: null
                 }, localUri);
-
-                // 3. Notify UI to refresh immediately
-                EventRegister.emit('REFRESH_RECEIPTS');
-
+    
+                // 3. Navigate back immediately
+                router.back();
+    
                 // 4. Start background upload
                 uploadToServer(localUri).then(async (serverUrl) => {
-                    // Update payment with server URL and upload status
                     await StorageUtils.updatePayment(newPayment.id, {
                         serverUri: serverUrl,
-                        isUploaded: true
+                        isUploaded: true,
+                        uploadStatus: 'uploaded'
                     });
-                    // Notify UI of successful upload
                     EventRegister.emit('UPLOAD_COMPLETE', newPayment.id);
-                }).catch(error => {
+                }).catch(async error => {
                     console.error('Background upload failed:', error);
+                    await StorageUtils.updatePayment(newPayment.id, {
+                        uploadStatus: 'error'
+                    });
                     EventRegister.emit('UPLOAD_FAILED', newPayment.id);
                 });
-
-                router.back();
+    
             } catch (error) {
                 console.error('Error in confirm picture:', error);
             }
