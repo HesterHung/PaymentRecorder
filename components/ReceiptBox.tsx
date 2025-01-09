@@ -12,11 +12,13 @@ import {
 import { StorageUtils } from '../utils/storage';
 import { router } from 'expo-router';
 import { Payment } from '../types/payment'; // Import the Payment interface
+import { useFocusEffect } from '@react-navigation/native';
 
 const { width } = Dimensions.get('window');
 const SPACING = 6;
 const ITEMS_PER_ROW = 3;
 const ITEM_SIZE = (width - (SPACING * (ITEMS_PER_ROW + 1))) / ITEMS_PER_ROW;
+
 
 interface GroupedPayments {
     title: string;
@@ -25,10 +27,13 @@ interface GroupedPayments {
 
 export default function ReceiptBox() {
     const [groupedPayments, setGroupedPayments] = useState<GroupedPayments[]>([]);
-
-    useEffect(() => {
-        loadPayments();
-    }, []);
+    const [refreshTrigger, setRefreshTrigger] = useState(0);
+    
+    useFocusEffect(
+        React.useCallback(() => {
+            loadPayments();
+        }, [refreshTrigger])
+    );
 
     const loadPayments = async () => {
         const payments = await StorageUtils.getStoredPayments();
@@ -63,7 +68,8 @@ export default function ReceiptBox() {
             params: {
                 existingPayment: JSON.stringify({
                     ...payment,
-                    source: 'receipt-box'
+                    source: 'receipt-box',
+                    uri: payment.uri
                 })
             }
         });

@@ -6,6 +6,8 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { captureRef } from 'react-native-view-shot';
 import { StorageUtils } from '../utils/storage';
+import * as FileSystem from 'expo-file-system';
+import { EventRegister } from 'react-native-event-listeners';
 
 export default function ReceiptCapture() {
     const [permission, requestPermission] = useCameraPermissions();
@@ -58,27 +60,101 @@ export default function ReceiptCapture() {
         }
     };
 
+    const saveImageLocally = async (uri: string) => {
+        try {
+            // Create a permanent directory for receipts if it doesn't exist
+            const receiptsDir = `${FileSystem.documentDirectory}receipts`;
+            const dirInfo = await FileSystem.getInfoAsync(receiptsDir);
+            if (!dirInfo.exists) {
+                await FileSystem.makeDirectoryAsync(receiptsDir, { intermediates: true });
+            }
+
+            // Generate unique filename
+            const filename = `receipt_${Date.now()}.jpg`;
+            const newUri = `${receiptsDir}/${filename}`;
+
+            // Copy from temporary cache to permanent storage
+            await FileSystem.copyAsync({
+                from: uri,
+                to: newUri
+            });
+
+            console.log('Image saved locally at:', newUri);
+            return newUri;
+        } catch (error) {
+            console.error('Error saving image locally:', error);
+            throw error;
+        }
+    };
+
+    const uploadToServer = async (localUri: string) => {
+        try { //TODO
+            // Your server upload logic here
+            // For example:
+            // const formData = new FormData();
+            // formData.append('image', {
+            //     uri: localUri,
+            //     type: 'image/jpeg',
+            //     name: 'receipt.jpg',
+            // });
+            // const response = await fetch('YOUR_API_ENDPOINT', {
+            //     method: 'POST',
+            //     body: formData,
+            // });
+            // return response.url;
+
+            // Simulated upload for example
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            return localUri; // In real implementation, return server URL
+        } catch (error) {
+            console.error('Upload error:', error);
+            throw error;
+        }
+    };
+
+
     const retakePicture = () => {
         setCapturedImage(null);
     };
 
     const confirmPicture = async () => {
         if (capturedImage) {
-            const currentTimestamp = Date.now();
             try {
-                // Create a new payment with the captured image
-                await StorageUtils.savePaymentWithImage({
-                    title: "", // You can set a default title
+                // 1. Save to permanent local storage
+                const localUri = await saveImageLocally(capturedImage);
+
+                // 2. Create payment record with local URI
+                const newPayment = await StorageUtils.savePaymentWithImage({
+                    title: "",
                     whoPaid: paidBy,
-                    amount: 0, // Default amount that can be edited later
-                    amountType: "total", // Default type
+                    amount: 0,
+                    amountType: "total",
                     date: Date.now(),
-                    timestamp: currentTimestamp, // Add this line
-                }, capturedImage);
-                
+                    isUploaded: false,
+                    uri: null,
+                    serverUri: null
+                }, localUri);
+
+                // 3. Notify UI to refresh immediately
+                EventRegister.emit('REFRESH_RECEIPTS');
+
+                // 4. Start background upload
+                uploadToServer(localUri).then(async (serverUrl) => {
+                    // Update payment with server URL and upload status
+                    await StorageUtils.updatePayment(newPayment.id, {
+                        serverUri: serverUrl,
+                        isUploaded: true
+                    });
+                    // Notify UI of successful upload
+                    EventRegister.emit('UPLOAD_COMPLETE', newPayment.id);
+                }).catch(error => {
+                    console.error('Background upload failed:', error);
+                    EventRegister.emit('UPLOAD_FAILED', newPayment.id);
+                });
+
                 router.back();
             } catch (error) {
-                console.error('Error saving payment with image:', error);
+                console.error('Error in confirm picture:', error);
             }
         }
     };

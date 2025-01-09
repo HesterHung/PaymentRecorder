@@ -1,16 +1,15 @@
 export interface Payment {
   id: string;
-  date: number;
   title: string;
   whoPaid: string;
   amount: number;
-  amountType: 'total' | 'specific';
-  source?: string;
-  uri?: string;          // for receipt image URI
-  localPath?: string;    // for local storage path
-  isUploaded: boolean;   // track upload status
+  amountType: string;
+  date: number;
+  uri: string | null;      // Local file path
+  serverUri: string | null; // Server URL after upload
+  isUploaded: boolean;
+  uploadError?: string | null;
 }
-
 export interface GroupedPayments {
   title: string;
   data: Payment[];

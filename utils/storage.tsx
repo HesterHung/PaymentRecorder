@@ -6,7 +6,7 @@ export const StorageUtils = {
   async savePayment(payment: Omit<Payment, 'id' | 'isUploaded'>): Promise<Payment> {
     const timestamp = Date.now();
     const id = `payment_${timestamp}`;
-    
+
     const newPayment: Payment = {
       ...payment,
       id,
@@ -20,39 +20,31 @@ export const StorageUtils = {
     return newPayment;
   },
 
-  async savePaymentWithImage(
-    paymentData: Omit<Payment, 'id' | 'isUploaded' | 'uri' | 'localPath'>,
-    imageUri: string
-  ): Promise<Payment> {
-    const timestamp = Date.now();
-    const filename = `receipt_${timestamp}.jpg`;
-    const localPath = `${FileSystem.documentDirectory}receipts/${filename}`;
-
-    // Ensure directory exists
-    await FileSystem.makeDirectoryAsync(
-      `${FileSystem.documentDirectory}receipts/`,
-      { intermediates: true }
-    );
-
-    // Copy image to local storage
-    await FileSystem.copyAsync({
-      from: imageUri,
-      to: localPath
-    });
-
+  savePaymentWithImage: async (payment: Omit<Payment, 'id'>, localUri: string) => {
+    const id = Date.now().toString();
     const newPayment: Payment = {
-      ...paymentData,
-      id: `payment_${timestamp}`,
-      uri: imageUri,
-      localPath,
+      ...payment,
+      id,
+      uri: null,    // Local file path
+      serverUri: null, // Will be updated after upload
       isUploaded: false,
+      uploadError: null
     };
 
-    const payments = await this.getStoredPayments();
-    payments.push(newPayment);
-    await AsyncStorage.setItem(CONSTANTS.STORAGE_KEYS.PAYMENTS, JSON.stringify(payments));
+    try {
+      const existingPayments = await AsyncStorage.getItem('payments');
+      const payments: Payment[] = existingPayments
+        ? JSON.parse(existingPayments)
+        : [];
 
-    return newPayment;
+      payments.unshift(newPayment);
+      await AsyncStorage.setItem('payments', JSON.stringify(payments));
+
+      return newPayment;
+    } catch (error) {
+      console.error('Error saving payment:', error);
+      throw error;
+    }
   },
 
   async getStoredPayments(): Promise<Payment[]> {
@@ -62,7 +54,7 @@ export const StorageUtils = {
 
   async markAsUploaded(id: string): Promise<void> {
     const payments = await this.getStoredPayments();
-    const updatedPayments = payments.map(payment => 
+    const updatedPayments = payments.map(payment =>
       payment.id === id ? { ...payment, isUploaded: true } : payment
     );
     await AsyncStorage.setItem(CONSTANTS.STORAGE_KEYS.PAYMENTS, JSON.stringify(updatedPayments));
@@ -73,9 +65,9 @@ export const StorageUtils = {
     const payment = payments.find(p => p.id === id);
 
     // Delete image file if exists
-    if (payment?.localPath) {
+    if (payment?.uri) {
       try {
-        await FileSystem.deleteAsync(payment.localPath);
+        await FileSystem.deleteAsync(payment.uri);
       } catch (error) {
         console.error('Error deleting image file:', error);
       }
@@ -86,12 +78,22 @@ export const StorageUtils = {
     await AsyncStorage.setItem(CONSTANTS.STORAGE_KEYS.PAYMENTS, JSON.stringify(updatedPayments));
   },
 
-  async updatePayment(updatedPayment: Payment): Promise<void> {
-    const payments = await this.getStoredPayments();
-    const updatedPayments = payments.map(payment => 
-      payment.id === updatedPayment.id ? updatedPayment : payment
-    );
-    await AsyncStorage.setItem(CONSTANTS.STORAGE_KEYS.PAYMENTS, JSON.stringify(updatedPayments));
+  updatePayment: async (id: string, updates: Partial<Payment>) => {
+    try {
+      const existingPayments = await AsyncStorage.getItem('payments');
+      if (existingPayments) {
+        const payments: Payment[] = JSON.parse(existingPayments);
+        const updatedPayments = payments.map(payment =>
+          payment.id === id
+            ? { ...payment, ...updates }
+            : payment
+        );
+        await AsyncStorage.setItem('payments', JSON.stringify(updatedPayments));
+      }
+    } catch (error) {
+      console.error('Error updating payment:', error);
+      throw error;
+    }
   },
 
   // Helper method to clean up orphaned image files
@@ -100,11 +102,11 @@ export const StorageUtils = {
       const payments = await this.getStoredPayments();
       const receiptsDir = `${FileSystem.documentDirectory}receipts/`;
       const files = await FileSystem.readDirectoryAsync(receiptsDir);
-      
+
       for (const file of files) {
         const filePath = `${receiptsDir}${file}`;
-        const isUsed = payments.some(payment => payment.localPath === filePath);
-        
+        const isUsed = payments.some(payment => payment.uri === filePath);
+
         if (!isUsed) {
           await FileSystem.deleteAsync(filePath);
         }

@@ -24,39 +24,36 @@ const InputScreen: React.FC = () => {
   const [amount, setAmount] = useState(0);
   const [amountType, setAmountType] = useState<'total' | 'specific'>('total');
 
-  const [date, setDate] = useState(() =>
-    existingPayment ? new Date(existingPayment.date) : new Date()
-  ); const [receipt, setReceipt] = useState<string | null>(
-    existingPayment?.uri ?? null
-  );
+  const [date, setDate] = useState(() => existingPayment ? new Date(existingPayment.date) : new Date());
+  const [receipt, setReceipt] = useState<string | null>(() => existingPayment?.uri ?? null);
   const [title, setTitle] = useState(existingPayment?.title || '');
   const [whoPaid, setWhoPaid] = useState(existingPayment?.whoPaid || 'Person 1');
 
-  // Add useEffect to update receipt when existingPayment changes
   useEffect(() => {
-    if (existingPayment?.uri) {
-      setReceipt(existingPayment.uri);
-    }
-  }, [existingPayment]);
-
-  // Update your back button handler
-  useEffect(() => {
-    const backAction = () => {
-      if (existingPayment?.source === 'receipt-box') {
-        router.replace('/(tabs)/receipt-box');
-      } else {
-        router.replace('/');
+    if (params.existingPayment) {
+      try {
+        const payment = JSON.parse(params.existingPayment as string) as Payment;
+        setTitle(payment.title);
+        setWhoPaid(payment.whoPaid);
+        setAmount(payment.amount);
+        setAmountType(payment.amountType as 'total' | 'specific');
+        setDate(new Date(payment.date));
+        // Explicitly set the receipt
+        if (payment.uri) {
+          setReceipt(payment.uri);
+        }
+        // Set the total or specific amount based on the payment type
+        if (payment.amountType === 'total') {
+          setTotalAmount(payment.amount.toString());
+        } else {
+          setSpecificAmount(payment.amount.toString());
+        }
+      } catch (error) {
+        console.error('Error parsing existing payment:', error);
       }
-      return true;
-    };
+    }
+  }, [params.existingPayment]);
 
-    const backHandler = BackHandler.addEventListener(
-      'hardwareBackPress',
-      backAction
-    );
-
-    return () => backHandler.remove();
-  }, [existingPayment]);
 
   const handleImageSelection = () => {
     if (Platform.OS === 'ios') {
@@ -140,18 +137,6 @@ const InputScreen: React.FC = () => {
       );
     }
   };
-
-  useEffect(() => {
-    if (params.existingPayment) {
-      const payment = JSON.parse(params.existingPayment as string) as Payment;
-      setExistingPayment(payment);
-      setTitle(payment.title);
-      setPaidBy(payment.whoPaid);
-      setAmount(payment.amount);
-      setAmountType(payment.amountType);
-    }
-  }, [params]);
-
   async function handleSubmit(event: GestureResponderEvent): Promise<void> {
     try {
       const numericAmount = amountType === 'total'
@@ -163,22 +148,20 @@ const InputScreen: React.FC = () => {
         return;
       }
 
-      const newPayment: Omit<Payment, 'id' | 'isUploaded'> = {
+      // Create payment data with all required fields
+      const paymentData: Omit<Payment, 'id' | 'isUploaded'> = {
         title: title || 'Untitled',
         whoPaid: whoPaid,
         amount: numericAmount,
         amountType: amountType,
         date: date.getTime(),
-        uri: receipt || undefined,
-        localPath: receipt || undefined
+        uri: receipt || null,
+        serverUri: null
       };
 
-      if (existingPayment) {
-        const updatedPayment = {
-          ...existingPayment,
-          ...newPayment,
-        };
-        await StorageUtils.updatePayment(updatedPayment);
+      if (existingPayment?.id) {
+        // For updates, we can use Partial<Payment>
+        await StorageUtils.updatePayment(existingPayment.id, paymentData);
         Toast.show({
           type: 'success',
           text1: 'Success',
@@ -187,7 +170,8 @@ const InputScreen: React.FC = () => {
           visibilityTime: 2000,
         });
       } else {
-        await StorageUtils.savePayment(newPayment);
+        // For new payments, we use the complete data
+        await StorageUtils.savePayment(paymentData);
         Toast.show({
           type: 'success',
           text1: 'Expense saved successfully',
@@ -351,7 +335,14 @@ const InputScreen: React.FC = () => {
           </TouchableOpacity>
           {receipt && (
             <View style={styles.imageContainer}>
-              <Image source={{ uri: receipt }} style={styles.image} />
+              <Image
+                source={{ uri: receipt }}
+                style={styles.image}
+                resizeMode="cover"
+                onError={(e) => console.error('Image loading error:', e.nativeEvent.error)}
+                onLoad={() => console.log('Image loaded successfully')}
+              />
+              <Text>{receipt}</Text> {/* Temporary: to verify the URI */}
             </View>
           )}
         </View>
