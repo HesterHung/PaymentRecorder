@@ -157,7 +157,8 @@ const InputScreen: React.FC = () => {
         date: date.getTime(),
         uri: receipt || null,
         serverUri: null,
-        uploadStatus: 'uploading'
+        uploadStatus: 'uploading',
+        imageUploadStatus: 'uploading'
       };
 
       if (existingPayment?.id) {

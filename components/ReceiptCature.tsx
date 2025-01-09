@@ -108,7 +108,8 @@ export default function ReceiptCapture() {
                     isUploaded: false,
                     uploadStatus: 'uploading', // Add this new field
                     uri: localUri,
-                    serverUri: null
+                    serverUri: null,
+                    imageUploadStatus: 'uploading'
                 }, localUri);
     
                 // 3. Navigate back immediately
@@ -119,13 +120,13 @@ export default function ReceiptCapture() {
                     await StorageUtils.updatePayment(newPayment.id, {
                         serverUri: serverUrl,
                         isUploaded: true,
-                        uploadStatus: 'uploaded'
+                        imageUploadStatus: 'uploaded'
                     });
                     EventRegister.emit('UPLOAD_COMPLETE', newPayment.id);
                 }).catch(async error => {
                     console.error('Background upload failed:', error);
                     await StorageUtils.updatePayment(newPayment.id, {
-                        uploadStatus: 'error'
+                        imageUploadStatus: 'error'
                     });
                     EventRegister.emit('UPLOAD_FAILED', newPayment.id);
                 });

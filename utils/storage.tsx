@@ -30,7 +30,8 @@ export const StorageUtils = {
       serverUri: null, // Will be updated after upload
       isUploaded: false,
       uploadStatus: 'uploading',
-      uploadError: null
+      uploadError: null,
+      imageUploadStatus: 'pending',
     };
 
     try {

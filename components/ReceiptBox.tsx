@@ -54,17 +54,17 @@ const ReceiptThumbnail: React.FC<{
                         resizeMode="cover"
                     />
                     <View style={styles.statusContainer}>
-                        {payment.uploadStatus === 'uploading' && (
+                        {payment.imageUploadStatus === 'uploading' || payment.imageUploadStatus === 'pending' && (
                             <View style={[styles.statusBadge, styles.uploadingBadge]}>
                                 <ActivityIndicator size="small" color="#FFFFFF" />
                             </View>
                         )}
-                        {payment.uploadStatus === 'uploaded' && (
+                        {payment.imageUploadStatus === 'uploaded' && (
                             <View style={[styles.statusBadge, styles.uploadedBadge]}>
                                 <Ionicons name="checkmark-circle" size={16} color="#FFFFFF" />
                             </View>
                         )}
-                        {payment.uploadStatus === 'error' && (
+                        {payment.imageUploadStatus === 'error' && (
                             <TouchableOpacity
                                 style={[styles.statusBadge, styles.errorBadge]}
                                 onPress={(e) => {
@@ -81,6 +81,7 @@ const ReceiptThumbnail: React.FC<{
         </TouchableOpacity>
     );
 };
+
 
 export default function ReceiptBox() {
     const [groupedPayments, setGroupedPayments] = useState<GroupedPayments[]>([]);
@@ -152,22 +153,21 @@ export default function ReceiptBox() {
     const handleRetryUpload = async (payment: Payment) => {
         try {
             await StorageUtils.updatePayment(payment.id, {
-                uploadStatus: 'uploading'
+                imageUploadStatus: 'uploading'
             });
-
+    
             const serverUrl = await uploadToServer(payment.uri!);
-
+    
             await StorageUtils.updatePayment(payment.id, {
                 serverUri: serverUrl,
-                isUploaded: true,
-                uploadStatus: 'uploaded'
+                imageUploadStatus: 'uploaded'
             });
-
+    
             loadPayments(); // Refresh the list
         } catch (error) {
             console.error('Retry upload failed:', error);
             await StorageUtils.updatePayment(payment.id, {
-                uploadStatus: 'error'
+                imageUploadStatus: 'error'
             });
         }
     };

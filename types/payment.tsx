@@ -1,3 +1,5 @@
+export type ImageUploadStatus = 'uploading' | 'uploaded' | 'error' | 'pending';
+
 export interface Payment {
   id: string;
   title: string;
@@ -10,7 +12,7 @@ export interface Payment {
   isUploaded: boolean;
   uploadError?: string | null;
   uploadStatus: 'uploading' | 'uploaded' | 'error';
-
+  imageUploadStatus: ImageUploadStatus;
 }
 export interface GroupedPayments {
   title: string;
