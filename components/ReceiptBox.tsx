@@ -7,7 +7,8 @@ import {
     Dimensions,
     Text,
     ActivityIndicator,
-    TouchableOpacity
+    TouchableOpacity,
+    ViewStyle
 } from 'react-native';
 import { StorageUtils } from '../utils/storage';
 import { router } from 'expo-router';
@@ -17,52 +18,66 @@ import { Ionicons } from '@expo/vector-icons';
 import { uploadToServer } from '@/services/uploadService';
 
 const { width } = Dimensions.get('window');
-const SPACING = 6;
+const SPACING = 8;
 const ITEMS_PER_ROW = 3;
-const ITEM_SIZE = (width - (SPACING * (ITEMS_PER_ROW + 1))) / ITEMS_PER_ROW;
+const ITEM_SIZE = (width - (SPACING * 4)) / 3;
 
+// Create a function outside of StyleSheet to generate container style
+const getImageContainerStyle = (index: number): ViewStyle => ({
+    width: ITEM_SIZE,
+    height: ITEM_SIZE,
+    marginRight: (index + 1) % 3 === 0 ? 0 : SPACING,
+    marginBottom: SPACING,
+});
 
 interface GroupedPayments {
     title: string;
     data: Payment[];
 }
 
-const ReceiptThumbnail: React.FC<{ payment: Payment; onPress: () => void; onRetryUpload: () => void }> = ({
-    payment,
-    onPress,
-    onRetryUpload
-}) => {
+const ReceiptThumbnail: React.FC<{
+    payment: Payment;
+    onPress: () => void;
+    onRetryUpload: () => void;
+    index: number;
+}> = ({ payment, onPress, onRetryUpload, index }) => {
     return (
         <TouchableOpacity
-            style={styles.imageContainer}
+            style={getImageContainerStyle(index)}
             onPress={onPress}
         >
             {payment.uri && (
-                <Image
-                    source={{ uri: payment.uri }}
-                    style={styles.image}
-                    resizeMode="cover"
-                />
+                <>
+                    <Image
+                        source={{ uri: payment.uri }}
+                        style={styles.image}
+                        resizeMode="cover"
+                    />
+                    <View style={styles.statusContainer}>
+                        {payment.uploadStatus === 'uploading' && (
+                            <View style={[styles.statusBadge, styles.uploadingBadge]}>
+                                <ActivityIndicator size="small" color="#FFFFFF" />
+                            </View>
+                        )}
+                        {payment.uploadStatus === 'uploaded' && (
+                            <View style={[styles.statusBadge, styles.uploadedBadge]}>
+                                <Ionicons name="checkmark-circle" size={16} color="#FFFFFF" />
+                            </View>
+                        )}
+                        {payment.uploadStatus === 'error' && (
+                            <TouchableOpacity
+                                style={[styles.statusBadge, styles.errorBadge]}
+                                onPress={(e) => {
+                                    e.stopPropagation();
+                                    onRetryUpload();
+                                }}
+                            >
+                                <Ionicons name="refresh-circle" size={16} color="#FFFFFF" />
+                            </TouchableOpacity>
+                        )}
+                    </View>
+                </>
             )}
-            <View style={styles.statusIconContainer}>
-                {payment.uploadStatus === 'uploading' && (
-                    <ActivityIndicator size="small" color="#007AFF" />
-                )}
-                {payment.uploadStatus === 'uploaded' && (
-                    <Ionicons name="cloud-done" size={20} color="#34C759" />
-                )}
-                {payment.uploadStatus === 'error' && (
-                    <TouchableOpacity
-                        onPress={(e) => {
-                            e.stopPropagation();
-                            onRetryUpload();
-                        }}
-                        style={styles.retryButton}
-                    >
-                        <Ionicons name="cloud-upload" size={20} color="#FF3B30" />
-                    </TouchableOpacity>
-                )}
-            </View>
         </TouchableOpacity>
     );
 };
@@ -122,28 +137,13 @@ export default function ReceiptBox() {
             <Text style={styles.monthTitle}>{item.title}</Text>
             <View style={styles.imageGrid}>
                 {item.data.map((payment, index) => (
-                    <TouchableOpacity
+                    <ReceiptThumbnail
                         key={payment.id}
-                        style={[
-                            styles.imageContainer,
-                            (index + 1) % 3 === 0 ? { marginRight: 0 } : null
-                        ]}
+                        payment={payment}
                         onPress={() => handleImagePress(payment)}
-                        disabled={!payment.isUploaded}
-                    >
-                        {payment.uri && (
-                            <Image
-                                source={{ uri: payment.uri }}
-                                style={styles.image}
-                                resizeMode="cover"
-                            />
-                        )}
-                        {!payment.isUploaded && (
-                            <View style={styles.uploadingOverlay}>
-                                <ActivityIndicator color="white" />
-                            </View>
-                        )}
-                    </TouchableOpacity>
+                        onRetryUpload={() => handleRetryUpload(payment)}
+                        index={index}
+                    />
                 ))}
             </View>
         </View>
@@ -184,33 +184,48 @@ export default function ReceiptBox() {
 
 const styles = StyleSheet.create({
     container: {
-        flex: 1,
+        paddingTop: SPACING,
     },
     monthSection: {
         marginBottom: 20,
-        paddingHorizontal: SPACING,
     },
     monthTitle: {
         fontSize: 20,
         fontWeight: 'bold',
         marginBottom: 10,
+        paddingHorizontal: SPACING,
     },
     imageGrid: {
         flexDirection: 'row',
         flexWrap: 'wrap',
-        justifyContent: 'flex-start',
-        alignItems: 'flex-start',
-    },
-    imageContainer: {
-        width: ITEM_SIZE,
-        height: ITEM_SIZE,
-        marginRight: SPACING,
-        marginBottom: SPACING,
+        paddingHorizontal: SPACING,
     },
     image: {
         width: '100%',
         height: '100%',
-        borderRadius: 4,
+        borderRadius: 8,
+    },
+    statusContainer: {
+        position: 'absolute',
+        bottom: 8,
+        left: 8,
+        zIndex: 2,
+    },
+    statusBadge: {
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    uploadingBadge: {
+        backgroundColor: '#007AFF80',
+    },
+    uploadedBadge: {
+        backgroundColor: '#34C75980',
+    },
+    errorBadge: {
+        backgroundColor: '#FF3B3080',
     },
     uploadingOverlay: {
         ...StyleSheet.absoluteFillObject,
