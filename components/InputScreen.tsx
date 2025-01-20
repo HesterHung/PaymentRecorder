@@ -5,48 +5,47 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import { Camera } from 'expo-camera';
 import { router, useLocalSearchParams } from 'expo-router';
-import { CONSTANTS, Payment } from '@/types/payment';
+import { CONSTANTS, Payer, Payment } from '@/types/payment';
 import { StorageUtils } from '@/utils/storage';
 import Toast from 'react-native-toast-message';
 
 
-
+//components\InputScreen.tsx
 const InputScreen: React.FC = () => {
   const params = useLocalSearchParams();
-
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [totalAmount, setTotalAmount] = useState('');
-  const [specificAmount, setSpecificAmount] = useState('');
   const [existingPayment, setExistingPayment] = useState<Payment | null>(null);
 
-
-  const [paidBy, setPaidBy] = useState<string>(CONSTANTS.PAYERS[0]);
-  const [amount, setAmount] = useState(0);
+  // Initialize state with existingPayment data
+  const [title, setTitle] = useState('');
+  const [whoPaid, setWhoPaid] = useState<Payer>(CONSTANTS.PAYERS[0]);
   const [amountType, setAmountType] = useState<'total' | 'specific'>('total');
+  const [totalAmount, setTotalAmount] = useState('');
+  const [specificAmount, setSpecificAmount] = useState('');
+  const [date, setDate] = useState(new Date());
+  const [receipt, setReceipt] = useState<string | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
 
-  const [date, setDate] = useState(() => existingPayment ? new Date(existingPayment.date) : new Date());
-  const [receipt, setReceipt] = useState<string | null>(() => existingPayment?.uri ?? null);
-  const [title, setTitle] = useState(existingPayment?.title || '');
-  const [whoPaid, setWhoPaid] = useState(existingPayment?.whoPaid || 'Person 1');
 
+  // Use useEffect to parse and set the existing payment data
   useEffect(() => {
     if (params.existingPayment) {
       try {
         const payment = JSON.parse(params.existingPayment as string) as Payment;
-        setTitle(payment.title);
+        setExistingPayment(payment);
+        setTitle(payment.title || '');
         setWhoPaid(payment.whoPaid);
-        setAmount(payment.amount);
         setAmountType(payment.amountType as 'total' | 'specific');
         setDate(new Date(payment.date));
-        // Explicitly set the receipt
-        if (payment.uri) {
-          setReceipt(payment.uri);
-        }
-        // Set the total or specific amount based on the payment type
+        setReceipt(payment.uri);
+
+        // Set the amount in the correct input field
         if (payment.amountType === 'total') {
           setTotalAmount(payment.amount.toString());
+          setSpecificAmount('');
         } else {
           setSpecificAmount(payment.amount.toString());
+          setTotalAmount('');
         }
       } catch (error) {
         console.error('Error parsing existing payment:', error);
@@ -148,79 +147,92 @@ const InputScreen: React.FC = () => {
         return;
       }
 
-      // Create payment data with all required fields
       const paymentData: Omit<Payment, 'id' | 'isUploaded'> = {
         title: title || 'Untitled',
-        whoPaid: whoPaid,
+        whoPaid,
         amount: numericAmount,
-        amountType: amountType,
+        amountType,
         date: date.getTime(),
-        uri: receipt || null,
-        serverUri: null,
+        uri: receipt,
+        serverUri: existingPayment?.serverUri || null,
         uploadStatus: 'uploading',
         imageUploadStatus: 'uploading'
       };
 
       if (existingPayment?.id) {
-        // For updates, we can use Partial<Payment>
+        // Update existing payment
         await StorageUtils.updatePayment(existingPayment.id, paymentData);
         Toast.show({
           type: 'success',
           text1: 'Success',
-          text2: 'Expense updated successfully',
-          position: 'bottom',
-          visibilityTime: 2000,
+          text2: 'Payment updated successfully',
         });
       } else {
-        // For new payments, we use the complete data
+        // Create new payment
         await StorageUtils.savePayment(paymentData);
         Toast.show({
           type: 'success',
-          text1: 'Expense saved successfully',
-          position: 'bottom',
-          visibilityTime: 2000,
+          text1: 'Success',
+          text2: 'Payment saved successfully',
         });
       }
 
-      // Reset form
-      setTitle('');
-      setWhoPaid(CONSTANTS.PAYERS[0]);
-      setAmountType('total');
-      setTotalAmount('');
-      setSpecificAmount('');
-      setDate(new Date());
-      setReceipt(null);
-
+      // Navigate back to the previous screen
+      router.back();
     } catch (error) {
       console.error('Error saving payment:', error);
       Toast.show({
         type: 'error',
         text1: 'Error',
-        text2: 'Failed to save expense. Please try again.',
-        position: 'bottom',
-        visibilityTime: 2000,
+        text2: 'Failed to save payment. Please try again.',
       });
     }
   }
   return (
     <ScrollView style={styles.container}>
       <View style={styles.formContainer}>
-        {/* Date Section */}
+        <Text style={styles.screenTitle}>
+          {existingPayment ? 'Edit Payment' : 'New Payment'}
+        </Text>        {/* Date Section */}
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Date</Text>
-          <TouchableOpacity
-            style={styles.dateButton}
-            onPress={() => setShowDatePicker(true)}
-          >
-            <Text style={styles.dateText}>{date.toLocaleDateString()}</Text>
-            <Ionicons name="calendar" size={24} color="#007AFF" />
-          </TouchableOpacity>
+          <Text style={styles.label}>Date and Time</Text>
+          <View style={styles.dateTimeContainer}>
+            <TouchableOpacity
+              style={[styles.dateButton, styles.dateTimeButton]}
+              onPress={() => setShowDatePicker(true)}
+            >
+              <Text style={styles.dateText}>{date.toLocaleDateString()}</Text>
+              <Ionicons name="calendar" size={24} color="#007AFF" />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.dateButton, styles.dateTimeButton]}
+              onPress={() => setShowTimePicker(true)}
+            >
+              <Text style={styles.dateText}>
+                {date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </Text>
+              <Ionicons name="time" size={24} color="#007AFF" />
+            </TouchableOpacity>
+          </View>
+
           {showDatePicker && (
             <DateTimePicker
               value={date}
               mode="date"
               onChange={(event, selectedDate) => {
                 setShowDatePicker(false);
+                if (selectedDate) setDate(selectedDate);
+              }}
+            />
+          )}
+
+          {showTimePicker && (
+            <DateTimePicker
+              value={date}
+              mode="time"
+              onChange={(event, selectedDate) => {
+                setShowTimePicker(false);
                 if (selectedDate) setDate(selectedDate);
               }}
             />
@@ -244,39 +256,25 @@ const InputScreen: React.FC = () => {
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Who paid?</Text>
           <View style={styles.payerButtons}>
-            <TouchableOpacity
-              style={[
-                styles.payerButton,
-                whoPaid === 'Person1' && styles.selectedPayer
-              ]}
-              onPress={() => setWhoPaid('Person1')}
-            >
-              <Ionicons
-                name={whoPaid === 'Person1' ? "person" : "person-outline"}
-                size={24}
-                color={whoPaid === 'Person1' ? 'white' : '#007AFF'}
-              />
-              <Text style={[styles.payerText, whoPaid === 'Person1' && styles.selectedPayerText]}>
-                Person 1
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.payerButton,
-                whoPaid === 'Person2' && styles.selectedPayer
-              ]}
-              onPress={() => setWhoPaid('Person2')}
-            >
-              <Ionicons
-                name={whoPaid === 'Person2' ? "person" : "person-outline"}
-                size={24}
-                color={whoPaid === 'Person2' ? 'white' : '#007AFF'}
-              />
-              <Text style={[styles.payerText, whoPaid === 'Person2' && styles.selectedPayerText]}>
-                Person 2
-              </Text>
-            </TouchableOpacity>
+            {CONSTANTS.PAYERS.map((payer) => (
+              <TouchableOpacity
+                key={payer}
+                style={[
+                  styles.payerButton,
+                  whoPaid === payer && styles.selectedPayer
+                ]}
+                onPress={() => setWhoPaid(payer)}
+              >
+                <Ionicons
+                  name={whoPaid === payer ? "person" : "person-outline"}
+                  size={24}
+                  color={whoPaid === payer ? 'white' : '#007AFF'}
+                />
+                <Text style={[styles.payerText, whoPaid === payer && styles.selectedPayerText]}>
+                  {payer}
+                </Text>
+              </TouchableOpacity>
+            ))}
           </View>
         </View>
 
@@ -349,12 +347,19 @@ const InputScreen: React.FC = () => {
           )}
         </View>
 
-        {/* Submit Button */}
+        {/* Submit and Cancel Buttons */}
         <TouchableOpacity
           style={styles.submitButton}
           onPress={handleSubmit}
         >
           <Text style={styles.submitButtonText}>Save Expense</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.cancelButton}
+          onPress={() => router.back()}
+        >
+          <Text style={styles.cancelButtonText}>Cancel</Text>
         </TouchableOpacity>
       </View>
     </ScrollView>
@@ -491,17 +496,56 @@ const styles = StyleSheet.create({
     height: 200,
     borderRadius: 12,
   },
+  screenTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 20,
+    color: '#333',
+  },
+  buttonContainer: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 20,
+  },
+  button: {
+    flex: 1,
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
   submitButton: {
     backgroundColor: '#007AFF',
     padding: 16,
     borderRadius: 12,
     alignItems: 'center',
-    marginTop: 12,
+    marginBottom: 12, // Add margin bottom to create space between buttons
+    width: '100%', // Ensure full width
   },
   submitButtonText: {
     color: 'white',
     fontSize: 16,
     fontWeight: '600',
+  },
+  cancelButton: {
+    backgroundColor: '#f5f5f5',
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#007AFF',
+    width: '100%', // Ensure full width
+  },
+  cancelButtonText: {
+    color: '#007AFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  dateTimeContainer: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  dateTimeButton: {
+    flex: 1,
   },
 
 });
