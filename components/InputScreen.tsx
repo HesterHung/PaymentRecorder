@@ -8,6 +8,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { CONSTANTS, Payer, Payment } from '@/types/payment';
 import { StorageUtils } from '@/utils/storage';
 import Toast from 'react-native-toast-message';
+import userStorage from '@/services/userStorage';
 
 
 //components\InputScreen.tsx
@@ -17,7 +18,7 @@ const InputScreen: React.FC = () => {
 
   // Initialize state with existingPayment data
   const [title, setTitle] = useState('');
-  const [whoPaid, setWhoPaid] = useState<Payer>(CONSTANTS.PAYERS[0]);
+  const [whoPaid, setWhoPaid] = useState<string>(userStorage.getCurrentUser());
   const [amountType, setAmountType] = useState<'total' | 'specific'>('total');
   const [totalAmount, setTotalAmount] = useState('');
   const [specificAmount, setSpecificAmount] = useState('');
@@ -282,7 +283,8 @@ const InputScreen: React.FC = () => {
       <View style={styles.formContainer}>
         <Text style={styles.screenTitle}>
           {existingPayment ? 'Edit Payment' : 'New Payment'}
-        </Text>        {/* Date Section */}
+        </Text>
+        {/* Date Section */}
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Date and Time</Text>
           <View style={styles.dateTimeContainer}>

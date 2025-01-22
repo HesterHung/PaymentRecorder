@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Payment, GroupedPayments, CONSTANTS } from '../types/payment';
 import { Alert } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
+import userStorage from '@/services/userStorage';
 
 const { width } = Dimensions.get('window');
 const peopleNumber = 2;
@@ -21,7 +22,23 @@ const OverallPayment: React.FC = () => {
   const [groupedPayments, setGroupedPayments] = useState<GroupedPayments[]>([]);
   const [totalBalance, setTotalBalance] = useState(0);
   const [expandedMonths, setExpandedMonths] = useState<{ [key: string]: boolean }>({});
+  const [currentUser, setCurrentUser] = useState<string>('');
 
+  useEffect(() => {
+    const initializeUser = async () => {
+      const user = userStorage.getCurrentUser();
+      setCurrentUser(user);
+    };
+
+    initializeUser();
+
+    // Subscribe to user changes
+    const unsubscribe = userStorage.subscribe(() => {
+      setCurrentUser(userStorage.getCurrentUser());
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -98,7 +115,6 @@ const OverallPayment: React.FC = () => {
       // Calculate totals and convert to array format
       const groupedArray = Object.entries(grouped).map(([title, data]) => {
         const totalAmount = data.reduce((sum, payment) => {
-          // For total amount type, divide by 2 since it's split between two people
           const actualAmount = payment.amountType === 'total'
             ? payment.amount / peopleNumber
             : payment.amount;
@@ -170,7 +186,7 @@ const OverallPayment: React.FC = () => {
                 styles.payerName,
                 { color: item.whoPaid === CONSTANTS.PAYERS[0] ? '#007AFF' : '#34C759' }
               ]}>
-                {item.whoPaid || 'Unknown'}
+                {item.whoPaid}
               </Text>
             </View>
           </View>
@@ -201,9 +217,18 @@ const OverallPayment: React.FC = () => {
             />
             <Text style={styles.monthTitle}>{item.title}</Text>
           </View>
-          <Text style={styles.monthTotal}>
-            Total: ${item.totalAmount.toFixed(2)}
-          </Text>
+          <View style={styles.monthTotalContainer}>
+            <Text style={styles.monthTotal}>
+              Total: ${Math.abs(item.totalAmount).toFixed(2)}
+            </Text>
+            <Text style={styles.monthOwes}>
+              {item.totalAmount < 0
+                ? `(${CONSTANTS.PAYERS[0]} owes)`
+                : item.totalAmount > 0
+                  ? `(${CONSTANTS.PAYERS[1]} owes)`
+                  : '(settled)'}
+            </Text>
+          </View>
         </TouchableOpacity>
 
         {isExpanded && (
@@ -222,7 +247,7 @@ const OverallPayment: React.FC = () => {
     <View style={styles.container}>
       <View style={styles.balanceCard}>
         <View style={styles.balanceHeader}>
-          <Text style={styles.balanceTitle}>Overall Balance</Text>
+          <Text style={styles.balanceTitle}>Overall Balance {currentUser ? `(${currentUser})` : ''}</Text>
           <TouchableOpacity onPress={toggleBalanceVisibility}>
             <Ionicons
               name={isBalanceVisible ? "eye-outline" : "eye-off-outline"}
@@ -285,17 +310,12 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   monthSection: {
-    marginBottom: 24,
+    marginBottom: 0,
   },
   monthTitle: {
     fontSize: 20,
     fontWeight: 'bold',
     color: '#333',
-  },
-  monthTotal: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#666',
   },
   paymentItem: {
     backgroundColor: 'white',
@@ -382,6 +402,18 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     paddingVertical: 8,
     paddingHorizontal: 4,
+  },
+  monthTotalContainer: {
+    alignItems: 'flex-end', // Right align both texts
+  },
+  monthTotal: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#666',
+  },
+  monthOwes: {
+    fontSize: 12,
+    color: '#666',
   },
 });
 

@@ -9,6 +9,7 @@ import { StorageUtils } from '../utils/storage';
 import * as FileSystem from 'expo-file-system';
 import { EventRegister } from 'react-native-event-listeners';
 import { uploadToServer } from '@/services/uploadService';
+import { CONSTANTS } from '@/types/payment';
 
 export default function ReceiptCapture() {
     const [permission, requestPermission] = useCameraPermissions();
@@ -16,13 +17,13 @@ export default function ReceiptCapture() {
     const [facing, setFacing] = useState<CameraType>('back');
     const cameraRef = useRef<CameraView>(null);  // Change the ref type to CameraView
     const [torch, setTorch] = useState(false);
-    const [paidBy, setPaidBy] = useState('Person A'); // Default value can be fetched from settings later
+    const [paidBy, setPaidBy] = useState(CONSTANTS.PAYERS[0]); // Use first user as default
 
 
 
 
     const togglePayer = () => {
-        setPaidBy(current => current === 'Person A' ? 'Person B' : 'Person A');
+        setPaidBy((current: string) => current === 'Person A' ? 'Person B' : 'Person A');
     };
 
     const toggleTorch = () => {
@@ -97,7 +98,7 @@ export default function ReceiptCapture() {
             try {
                 // 1. Save to permanent local storage
                 const localUri = await saveImageLocally(capturedImage);
-    
+
                 // 2. Create payment record with local URI and initial upload status
                 const newPayment = await StorageUtils.savePaymentWithImage({
                     title: "",
@@ -111,10 +112,10 @@ export default function ReceiptCapture() {
                     serverUri: null,
                     imageUploadStatus: 'uploading'
                 }, localUri);
-    
+
                 // 3. Navigate back immediately
                 router.back();
-    
+
                 // 4. Start background upload
                 uploadToServer(localUri).then(async (serverUrl) => {
                     await StorageUtils.updatePayment(newPayment.id, {
@@ -130,7 +131,7 @@ export default function ReceiptCapture() {
                     });
                     EventRegister.emit('UPLOAD_FAILED', newPayment.id);
                 });
-    
+
             } catch (error) {
                 console.error('Error in confirm picture:', error);
             }
@@ -156,7 +157,7 @@ export default function ReceiptCapture() {
                         style={[
                             styles.previewButton,
                             styles.payerButton,
-                            { backgroundColor: paidBy === 'Person A' ? '#007AFF' : '#FF9500' }
+                            { backgroundColor: paidBy === CONSTANTS.PAYERS[0] ? '#007AFF' : '#FF9500' }
                         ]}
                         onPress={togglePayer}
                     >
