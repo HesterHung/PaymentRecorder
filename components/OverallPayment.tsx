@@ -1,6 +1,6 @@
 //components\OverallPayment.tsx
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, Dimensions, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Dimensions, TouchableOpacity, Platform, UIManager, LayoutAnimation } from 'react-native';
 import { StorageUtils } from '../utils/storage';
 import { Ionicons } from '@expo/vector-icons';
 import { Payment, GroupedPayments, CONSTANTS } from '../types/payment';
@@ -10,16 +10,33 @@ import { router, useFocusEffect } from 'expo-router';
 const { width } = Dimensions.get('window');
 const peopleNumber = 2;
 
+if (Platform.OS === 'android') {
+  if (UIManager.setLayoutAnimationEnabledExperimental) {
+    UIManager.setLayoutAnimationEnabledExperimental(true);
+  }
+}
+
 const OverallPayment: React.FC = () => {
   const [isBalanceVisible, setIsBalanceVisible] = useState(false);
   const [groupedPayments, setGroupedPayments] = useState<GroupedPayments[]>([]);
   const [totalBalance, setTotalBalance] = useState(0);
+  const [expandedMonths, setExpandedMonths] = useState<{ [key: string]: boolean }>({});
+
 
   useFocusEffect(
     React.useCallback(() => {
       loadReceipts();
     }, [])
   );
+
+  const toggleMonth = (monthTitle: string) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setExpandedMonths(prev => ({
+      ...prev,
+      [monthTitle]: !prev[monthTitle]
+    }));
+  };
+
 
   const toggleBalanceVisibility = () => {
     setIsBalanceVisible(!isBalanceVisible);
@@ -167,22 +184,39 @@ const OverallPayment: React.FC = () => {
     );
   };
 
-  const renderMonthSection = ({ item }: { item: GroupedPayments }) => (
-    <View style={styles.monthSection}>
-      <View style={styles.monthHeader}>
-        <Text style={styles.monthTitle}>{item.title}</Text>
-        <Text style={styles.monthTotal}>
-          Total: ${item.totalAmount.toFixed(2)}
-        </Text>
+  const renderMonthSection = ({ item }: { item: GroupedPayments }) => {
+    const isExpanded = expandedMonths[item.title] ?? true; // Default to expanded
+
+    return (
+      <View style={styles.monthSection}>
+        <TouchableOpacity
+          style={styles.monthHeader}
+          onPress={() => toggleMonth(item.title)}
+        >
+          <View style={styles.monthHeaderLeft}>
+            <Ionicons
+              name={isExpanded ? "chevron-down" : "chevron-forward"}
+              size={24}
+              color="#666"
+            />
+            <Text style={styles.monthTitle}>{item.title}</Text>
+          </View>
+          <Text style={styles.monthTotal}>
+            Total: ${item.totalAmount.toFixed(2)}
+          </Text>
+        </TouchableOpacity>
+
+        {isExpanded && (
+          <FlatList
+            data={item.data}
+            renderItem={renderReceiptItem}
+            keyExtractor={receipt => receipt.id}
+            scrollEnabled={false}
+          />
+        )}
       </View>
-      <FlatList
-        data={item.data}
-        renderItem={renderReceiptItem}
-        keyExtractor={receipt => receipt.id}
-        scrollEnabled={false}
-      />
-    </View>
-  );
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -252,12 +286,6 @@ const styles = StyleSheet.create({
   },
   monthSection: {
     marginBottom: 24,
-  },
-  monthHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
   },
   monthTitle: {
     fontSize: 20,
@@ -341,6 +369,19 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 8,
+  },
+  monthHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  monthHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
   },
 });
 
