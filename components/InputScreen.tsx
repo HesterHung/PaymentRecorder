@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, TextInput, ScrollView, Image, StyleSheet, TouchableOpacity, Text, Alert, GestureResponderEvent, Platform, BackHandler } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -26,6 +26,92 @@ const InputScreen: React.FC = () => {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
 
+  const hasUnsavedChanges = useMemo(() => {
+    return !!(title || totalAmount || specificAmount || receipt);
+  }, [title, totalAmount, specificAmount, receipt]);
+
+  const resetForm = useCallback(() => {
+    setTitle('');
+    setWhoPaid(CONSTANTS.PAYERS[0]);
+    setAmountType('total');
+    setTotalAmount('');
+    setSpecificAmount('');
+    setDate(new Date());
+    setReceipt(null);
+    setShowDatePicker(false);
+    setShowTimePicker(false);
+  }, []);
+
+  // Reset form when entering the screen (except for edit mode)
+  useEffect(() => {
+    if (!params.existingPayment) {
+      resetForm();
+    }
+  }, []);
+
+  // Modified useEffect for back handler
+  useEffect(() => {
+    const backAction = () => {
+      if (hasUnsavedChanges) {
+        Alert.alert(
+          "Discard changes?",
+          "You have unsaved changes. Are you sure you want to quit?",
+          [
+            {
+              text: "Stay",
+              style: "cancel",
+              onPress: () => null,
+            },
+            {
+              text: "Quit",
+              style: "destructive",
+              onPress: () => {
+                resetForm();
+                router.back();
+              }
+            }
+          ]
+        );
+        return true; // Prevent default back action
+      }
+      // If no unsaved changes, allow normal back navigation
+      router.back();
+      return true;
+    };
+
+    const backHandler = BackHandler.addEventListener(
+      "hardwareBackPress",
+      backAction
+    );
+
+    return () => backHandler.remove();
+  }, [hasUnsavedChanges, resetForm]); // Add all dependencies
+
+  // Modified handleCancel function
+  const handleCancel = () => {
+    if (hasUnsavedChanges) {
+      Alert.alert(
+        "Discard changes?",
+        "You have unsaved changes. Are you sure you want to quit?",
+        [
+          {
+            text: "Stay",
+            style: "cancel"
+          },
+          {
+            text: "Quit",
+            style: "destructive",
+            onPress: () => {
+              resetForm();
+              router.back();
+            }
+          }
+        ]
+      );
+    } else {
+      router.back();
+    }
+  };
 
   // Use useEffect to parse and set the existing payment data
   useEffect(() => {
@@ -176,6 +262,9 @@ const InputScreen: React.FC = () => {
           text2: 'Payment saved successfully',
         });
       }
+
+      // Reset form after successful save
+      resetForm();
 
       // Navigate back to the previous screen
       router.back();
@@ -335,6 +424,15 @@ const InputScreen: React.FC = () => {
           </TouchableOpacity>
           {receipt && (
             <View style={styles.imageContainer}>
+              <View style={styles.imageHeaderContainer}>
+                <TouchableOpacity
+                  style={styles.clearImageButton}
+                  onPress={() => setReceipt(null)}
+                >
+                  <Ionicons name="close-circle" size={24} color="#FF3B30" />
+                  <Text style={styles.clearImageText}>Clear Image</Text>
+                </TouchableOpacity>
+              </View>
               <Image
                 source={{ uri: receipt }}
                 style={styles.image}
@@ -342,7 +440,7 @@ const InputScreen: React.FC = () => {
                 onError={(e) => console.error('Image loading error:', e.nativeEvent.error)}
                 onLoad={() => console.log('Image loaded successfully')}
               />
-              <Text>{receipt}</Text> {/* Temporary: to verify the URI */}
+              <Text style={styles.imageUri}>{receipt}</Text> {/* Temporary: to verify the URI */}
             </View>
           )}
         </View>
@@ -357,7 +455,7 @@ const InputScreen: React.FC = () => {
 
         <TouchableOpacity
           style={styles.cancelButton}
-          onPress={() => router.back()}
+          onPress={handleCancel}
         >
           <Text style={styles.cancelButtonText}>Cancel</Text>
         </TouchableOpacity>
@@ -547,11 +645,30 @@ const styles = StyleSheet.create({
   dateTimeButton: {
     flex: 1,
   },
+  imageHeaderContainer: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginBottom: 8,
+  },
+  clearImageButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: '#FFE5E5',
+  },
+  clearImageText: {
+    color: '#FF3B30',
+    marginLeft: 4,
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  imageUri: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 4,
+  },
 
 });
 
 export default InputScreen;
-
-function setShowImageOptions(arg0: boolean) {
-  throw new Error('Function not implemented.');
-}

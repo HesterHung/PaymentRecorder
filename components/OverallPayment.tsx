@@ -11,6 +11,7 @@ const { width } = Dimensions.get('window');
 const peopleNumber = 2;
 
 const OverallPayment: React.FC = () => {
+  const [isBalanceVisible, setIsBalanceVisible] = useState(false);
   const [groupedPayments, setGroupedPayments] = useState<GroupedPayments[]>([]);
   const [totalBalance, setTotalBalance] = useState(0);
 
@@ -20,6 +21,9 @@ const OverallPayment: React.FC = () => {
     }, [])
   );
 
+  const toggleBalanceVisibility = () => {
+    setIsBalanceVisible(!isBalanceVisible);
+  };
 
   const handlePaymentPress = (payment: Payment) => {
     router.push({
@@ -183,8 +187,19 @@ const OverallPayment: React.FC = () => {
   return (
     <View style={styles.container}>
       <View style={styles.balanceCard}>
-        <Text style={styles.balanceTitle}>Overall Balance</Text>
-        <Text style={styles.balanceAmount}>${totalBalance.toFixed(2)}</Text>
+        <View style={styles.balanceHeader}>
+          <Text style={styles.balanceTitle}>Overall Balance</Text>
+          <TouchableOpacity onPress={toggleBalanceVisibility}>
+            <Ionicons
+              name={isBalanceVisible ? "eye-outline" : "eye-off-outline"}
+              size={24}
+              color="#666"
+            />
+          </TouchableOpacity>
+        </View>
+        <Text style={styles.balanceAmount}>
+          {isBalanceVisible ? `$${totalBalance.toFixed(2)}` : '•••••'}
+        </Text>
         <Text style={styles.balanceSubtitle}>
           Amount to be settled between {CONSTANTS.PAYERS[0]} and {CONSTANTS.PAYERS[1]}
         </Text>
@@ -220,7 +235,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     color: '#333',
-    marginBottom: 8,
   },
   balanceAmount: {
     fontSize: 32,
@@ -321,6 +335,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#888',
     marginTop: 2,
+  },
+  balanceHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
   },
 });
 
