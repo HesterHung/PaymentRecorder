@@ -7,7 +7,7 @@ export const CONSTANTS = {
     USERS: 'users'
   },
   // Default PAYERS array for immediate use
-  PAYERS: ['User 1', 'User 2'] as [string, string],
+  PAYERS: ['Hester', 'Lok'] as [string, string],
   // Method to update PAYERS
   async updatePayers() {
     try {

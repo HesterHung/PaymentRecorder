@@ -9,6 +9,7 @@ import { CONSTANTS, Payer, Payment } from '@/types/payment';
 import { StorageUtils } from '@/utils/storage';
 import Toast from 'react-native-toast-message';
 import userStorage from '@/services/userStorage';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 
 //components\InputScreen.tsx
@@ -18,7 +19,6 @@ const InputScreen: React.FC = () => {
 
   // Initialize state with existingPayment data
   const [title, setTitle] = useState('');
-  const [whoPaid, setWhoPaid] = useState<string>(userStorage.getCurrentUser());
   const [amountType, setAmountType] = useState<'total' | 'specific'>('total');
   const [totalAmount, setTotalAmount] = useState('');
   const [specificAmount, setSpecificAmount] = useState('');
@@ -26,14 +26,63 @@ const InputScreen: React.FC = () => {
   const [receipt, setReceipt] = useState<string | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
+  const [users, setUsers] = useState<[string, string]>(['User 1', 'User 2']);
+  const [whoPaid, setWhoPaid] = useState<string>('');
 
   const hasUnsavedChanges = useMemo(() => {
     return !!(title || totalAmount || specificAmount || receipt);
   }, [title, totalAmount, specificAmount, receipt]);
 
+  const hasUserChanged = useCallback(() => {
+    const currentUser = userStorage.getCurrentUser();
+    return currentUser && whoPaid && currentUser !== whoPaid;
+  }, [whoPaid]);
+
+  useEffect(() => {
+    const loadInitialData = async () => {
+      try {
+        // Load users from AsyncStorage
+        const storedUsers = await AsyncStorage.getItem('users');
+        if (storedUsers) {
+          const parsedUsers = JSON.parse(storedUsers);
+          if (parsedUsers.length >= 2) {
+            setUsers([parsedUsers[0], parsedUsers[1]]);
+          }
+        }
+
+        // Set the current user as the payer
+        const currentUser = userStorage.getCurrentUser();
+        if (currentUser) {
+          setWhoPaid(currentUser);
+        }
+      } catch (error) {
+        console.error('Error loading initial data:', error);
+      }
+    };
+
+    // Only load initial data if not in edit mode
+    if (!params.existingPayment) {
+      loadInitialData();
+    }
+
+    // Subscribe to user changes
+    const unsubscribe = userStorage.subscribe(() => {
+      if (!params.existingPayment) {
+        const currentUser = userStorage.getCurrentUser();
+        if (currentUser) {
+          setWhoPaid(currentUser);
+        }
+      }
+    });
+
+    // Cleanup subscription
+    return () => unsubscribe();
+  }, [params.existingPayment]);
+
   const resetForm = useCallback(() => {
     setTitle('');
-    setWhoPaid(CONSTANTS.PAYERS[0]);
+    const currentUser = userStorage.getCurrentUser();
+    setWhoPaid(currentUser || ''); // Set to current user or empty string
     setAmountType('total');
     setTotalAmount('');
     setSpecificAmount('');
@@ -42,6 +91,11 @@ const InputScreen: React.FC = () => {
     setShowDatePicker(false);
     setShowTimePicker(false);
   }, []);
+
+  const hasUserSelectionChanged = useCallback(() => {
+    const currentUser = userStorage.getCurrentUser();
+    return currentUser && whoPaid !== currentUser;
+  }, [whoPaid]);
 
   // Reset form when entering the screen (except for edit mode)
   useEffect(() => {
@@ -53,15 +107,14 @@ const InputScreen: React.FC = () => {
   // Modified useEffect for back handler
   useEffect(() => {
     const backAction = () => {
-      if (hasUnsavedChanges) {
+      if (hasUserChanged()) {
         Alert.alert(
-          "Discard changes?",
-          "You have unsaved changes. Are you sure you want to quit?",
+          "Different User Selected",
+          `You've selected ${whoPaid} instead of your default user ${userStorage.getCurrentUser()}. Are you sure you want to Quit?`,
           [
             {
               text: "Stay",
               style: "cancel",
-              onPress: () => null,
             },
             {
               text: "Quit",
@@ -73,9 +126,32 @@ const InputScreen: React.FC = () => {
             }
           ]
         );
-        return true; // Prevent default back action
+        return true;
       }
-      // If no unsaved changes, allow normal back navigation
+
+      // Check for other unsaved changes
+      if (hasUnsavedChanges) {
+        Alert.alert(
+          "Discard changes?",
+          "You have unsaved changes. Are you sure you want to Quit?",
+          [
+            {
+              text: "Stay",
+              style: "cancel",
+            },
+            {
+              text: "Quit",
+              style: "destructive",
+              onPress: () => {
+                resetForm();
+                router.back();
+              }
+            }
+          ]
+        );
+        return true;
+      }
+
       router.back();
       return true;
     };
@@ -86,14 +162,33 @@ const InputScreen: React.FC = () => {
     );
 
     return () => backHandler.remove();
-  }, [hasUnsavedChanges, resetForm]); // Add all dependencies
+  }, [hasUserChanged, hasUnsavedChanges, whoPaid, resetForm]);
 
   // Modified handleCancel function
   const handleCancel = () => {
-    if (hasUnsavedChanges) {
+    if (hasUserChanged()) {
+      Alert.alert(
+        "Different User Selected",
+        `You've selected ${whoPaid} instead of your default user ${userStorage.getCurrentUser()}. Are you sure you want to Quit?`,
+        [
+          {
+            text: "Stay",
+            style: "cancel"
+          },
+          {
+            text: "Quit",
+            style: "destructive",
+            onPress: () => {
+              resetForm();
+              router.back();
+            }
+          }
+        ]
+      );
+    } else if (hasUnsavedChanges) {
       Alert.alert(
         "Discard changes?",
-        "You have unsaved changes. Are you sure you want to quit?",
+        "You have unsaved changes. Are you sure you want to Quit?",
         [
           {
             text: "Stay",
@@ -347,7 +442,7 @@ const InputScreen: React.FC = () => {
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Who paid?</Text>
           <View style={styles.payerButtons}>
-            {CONSTANTS.PAYERS.map((payer) => (
+            {users.map((payer) => (
               <TouchableOpacity
                 key={payer}
                 style={[

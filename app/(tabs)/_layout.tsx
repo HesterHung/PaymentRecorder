@@ -70,6 +70,12 @@ export default function TabsLayout() {
           }}
         />
         <Tabs.Screen
+          name="profile-page"
+          options={{
+            href: null, // This hides it from the tab bar
+          }}
+        />
+        <Tabs.Screen
           name="receipt-box"
           options={{
             title: 'Receipts',

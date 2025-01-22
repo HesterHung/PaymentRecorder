@@ -2,22 +2,32 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, Alert, ScrollView } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
+import userStorage from '@/services/userStorage';
 
-export default function ProfilePage() {
-    const [users, setUsers] = useState<string[]>([]);
-    const [newUserName, setNewUserName] = useState('');
-    const [defaultUser, setDefaultUser] = useState('');
+const ProfilePage = () => {
+    const [users, setUsers] = useState<[string, string]>(['User 1', 'User 2']);
+    const [editingUser, setEditingUser] = useState<string | null>(null);
+    const [editName, setEditName] = useState('');
     const [currentUser, setCurrentUser] = useState('');
 
-    // Load saved users and default user from AsyncStorage on component mount
     useEffect(() => {
         const loadData = async () => {
             try {
                 const savedUsers = await AsyncStorage.getItem('users');
-                const savedDefaultUser = await AsyncStorage.getItem('defaultUser');
-                if (savedUsers) setUsers(JSON.parse(savedUsers));
-                if (savedDefaultUser) setDefaultUser(savedDefaultUser);
-                setCurrentUser(savedDefaultUser || '');
+                const savedCurrentUser = userStorage.getCurrentUser();
+                
+                if (savedUsers) {
+                    const parsedUsers = JSON.parse(savedUsers);
+                    // Ensure we always have exactly 2 users
+                    if (parsedUsers.length >= 2) {
+                        setUsers([parsedUsers[0], parsedUsers[1]]);
+                    }
+                } else {
+                    // Initialize with default users if none exist
+                    await AsyncStorage.setItem('users', JSON.stringify(['User 1', 'User 2']));
+                }
+                
+                setCurrentUser(savedCurrentUser);
             } catch (error) {
                 console.error('Error loading data:', error);
             }
@@ -25,54 +35,37 @@ export default function ProfilePage() {
         loadData();
     }, []);
 
-    // Save users and default user to AsyncStorage whenever they change
-    useEffect(() => {
-        const saveUsers = async () => {
+    const handleUpdateUser = async (index: number, newName: string) => {
+        if (newName.trim()) {
+            const newUsers: [string, string] = [...users] as [string, string];
+            newUsers[index] = newName.trim();
+            setUsers(newUsers);
+            
             try {
-                await AsyncStorage.setItem('users', JSON.stringify(users));
+                await AsyncStorage.setItem('users', JSON.stringify(newUsers));
+                
+                // Update current user if it was renamed
+                if (currentUser === users[index]) {
+                    await userStorage.setCurrentUser(newName.trim());
+                    setCurrentUser(newName.trim());
+                }
+                
+                setEditingUser(null);
+                setEditName('');
             } catch (error) {
                 console.error('Error saving users:', error);
-            }
-        };
-        saveUsers();
-    }, [users]);
-
-    useEffect(() => {
-        const saveDefaultUser = async () => {
-            if (defaultUser) {
-                try {
-                    await AsyncStorage.setItem('defaultUser', defaultUser);
-                } catch (error) {
-                    console.error('Error saving default user:', error);
-                }
-            }
-        };
-        saveDefaultUser();
-    }, [defaultUser]);
-
-    const handleAddUser = () => {
-        if (newUserName.trim() && !users.includes(newUserName.trim())) {
-            if (users.length >= 2) {
-                Alert.alert('Error', 'Maximum 2 users allowed');
-                return;
-            }
-            setUsers((prevUsers: string[]) => [...prevUsers, newUserName.trim()]);
-            setNewUserName('');
-            if (users.length === 0) {
-                setDefaultUser(newUserName.trim());
+                Alert.alert('Error', 'Failed to save user changes');
             }
         }
     };
 
-    const handleDeleteUser = (userToDelete: string) => {
-        if (users.length <= 1) {
-            Alert.alert('Error', 'Cannot delete last user');
-            return;
-        }
-        setUsers((prevUsers: string[]) => prevUsers.filter(user => user !== userToDelete));
-        if (defaultUser === userToDelete) {
-            const newDefaultUser = users.find(user => user !== userToDelete) || '';
-            setDefaultUser(newDefaultUser);
+    const handleSetDefaultUser = async (user: string) => {
+        try {
+            await userStorage.setCurrentUser(user);
+            setCurrentUser(user);
+        } catch (error) {
+            console.error('Error setting default user:', error);
+            Alert.alert('Error', 'Failed to set default user');
         }
     };
 
@@ -86,34 +79,6 @@ export default function ProfilePage() {
                     <Text style={{ color: '#4b5563' }}>
                         Current User: {currentUser || 'None'}
                     </Text>
-                </View>
-
-                <View style={{ flexDirection: 'row', marginBottom: 24, gap: 8 }}>
-                    <TextInput
-                        value={newUserName}
-                        onChangeText={setNewUserName}
-                        placeholder="Enter new user name"
-                        style={{
-                            flex: 1,
-                            paddingHorizontal: 16,
-                            paddingVertical: 8,
-                            borderWidth: 1,
-                            borderColor: '#d1d5db',
-                            borderRadius: 8
-                        }}
-                    />
-                    <TouchableOpacity
-                        onPress={handleAddUser}
-                        style={{
-                            padding: 8,
-                            backgroundColor: '#3b82f6',
-                            borderRadius: 8,
-                            justifyContent: 'center',
-                            alignItems: 'center'
-                        }}
-                    >
-                        <Ionicons name="add-circle" size={24} color="white" />
-                    </TouchableOpacity>
                 </View>
 
                 <View>
@@ -133,37 +98,72 @@ export default function ProfilePage() {
                                 marginBottom: 12
                             }}
                         >
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                                <Ionicons name="person" size={20} color="#666" />
-                                <Text style={{ color: '#374151' }}>{user}</Text>
-                            </View>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                                <TouchableOpacity
-                                    onPress={() => setDefaultUser(user)}
-                                    style={{ padding: 4 }}
-                                >
-                                    <Ionicons
-                                        name="checkmark-circle"
-                                        size={20}
-                                        color={defaultUser === user ? '#22c55e' : '#9ca3af'}
+                            {editingUser === user ? (
+                                <View style={{ flex: 1, flexDirection: 'row', gap: 8 }}>
+                                    <TextInput
+                                        value={editName}
+                                        onChangeText={setEditName}
+                                        placeholder="Enter new name"
+                                        style={{
+                                            flex: 1,
+                                            padding: 8,
+                                            backgroundColor: 'white',
+                                            borderRadius: 4,
+                                            borderWidth: 1,
+                                            borderColor: '#d1d5db'
+                                        }}
                                     />
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    onPress={() => handleDeleteUser(user)}
-                                    style={{ padding: 4 }}
-                                >
-                                    <Ionicons name="trash" size={20} color="#ef4444" />
-                                </TouchableOpacity>
-                            </View>
+                                    <TouchableOpacity
+                                        onPress={() => handleUpdateUser(index, editName)}
+                                        style={{ padding: 8 }}
+                                    >
+                                        <Ionicons name="checkmark" size={24} color="#22c55e" />
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        onPress={() => {
+                                            setEditingUser(null);
+                                            setEditName('');
+                                        }}
+                                        style={{ padding: 8 }}
+                                    >
+                                        <Ionicons name="close" size={24} color="#ef4444" />
+                                    </TouchableOpacity>
+                                </View>
+                            ) : (
+                                <>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                                        <Ionicons name="person" size={20} color="#666" />
+                                        <Text style={{ color: '#374151' }}>{user}</Text>
+                                    </View>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                        <TouchableOpacity
+                                            onPress={() => handleSetDefaultUser(user)}
+                                            style={{ padding: 4 }}
+                                        >
+                                            <Ionicons
+                                                name="checkmark-circle"
+                                                size={20}
+                                                color={currentUser === user ? '#22c55e' : '#9ca3af'}
+                                            />
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            onPress={() => {
+                                                setEditingUser(user);
+                                                setEditName(user);
+                                            }}
+                                            style={{ padding: 4 }}
+                                        >
+                                            <Ionicons name="pencil" size={20} color="#3b82f6" />
+                                        </TouchableOpacity>
+                                    </View>
+                                </>
+                            )}
                         </View>
                     ))}
-                    {users.length === 0 && (
-                        <Text style={{ color: '#6b7280', textAlign: 'center', paddingVertical: 16 }}>
-                            No users added yet. Add your first user above!
-                        </Text>
-                    )}
                 </View>
             </View>
         </ScrollView>
     );
-}
+};
+
+export default ProfilePage;
