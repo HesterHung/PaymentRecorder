@@ -24,6 +24,7 @@ export const StorageUtils = {
     const payments = await AsyncStorage.getItem(CONSTANTS.STORAGE_KEYS.PAYMENTS);
     return payments ? JSON.parse(payments) : [];
   },
+  
 
   async markAsUploaded(id: string): Promise<void> {
     const payments = await this.getStoredPayments();
@@ -102,4 +103,5 @@ export const StorageUtils = {
       throw error;
     }
   },
+  
 };

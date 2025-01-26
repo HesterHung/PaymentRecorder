@@ -567,13 +567,13 @@ const styles = StyleSheet.create({
   amountTypeContainer: {
     flexDirection: 'row',
     gap: 12,
-    marginBottom: 16,
+    marginBottom: 10,
   },
   amountTypeBox: {
     flex: 1,
     backgroundColor: '#F3F4F6',
     borderRadius: 12, // Reduced from 16
-    padding: 12, // Reduced from 16
+    padding: 10, // Reduced from 16
     alignItems: 'center',
     borderWidth: 2,
     borderColor: '#F3F4F6',
@@ -703,7 +703,8 @@ const styles = StyleSheet.create({
     color: '#6B7280',
   },
   formContainer: {
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
   },
   inputGroup: {
     marginBottom: 14,
@@ -715,13 +716,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#333',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   dateButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 15,
+    padding: 13,
     backgroundColor: 'white',
     borderRadius: 12,
     borderWidth: 1,
@@ -863,7 +864,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 6,
     paddingTop: Platform.OS === 'ios' ? 6 : 10,
-    paddingBottom: 8,
+    paddingBottom: 0,
     backgroundColor: '#f5f5f5',
     borderBottomWidth: 1,
     borderBottomColor: '#E0E0E0',
