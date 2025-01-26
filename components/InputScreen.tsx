@@ -8,7 +8,7 @@ import { StorageUtils } from '@/utils/storage';
 import Toast from 'react-native-toast-message';
 import userStorage from '@/services/userStorage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { USER_COLORS } from '@/constants/Colors';
+import { PRIMARY_COLOR, USER_COLORS } from '@/constants/Colors';
 
 
 //components\InputScreen.tsx
@@ -342,7 +342,7 @@ const InputScreen: React.FC = () => {
                 onPress={() => setShowDatePicker(true)}
               >
                 <Text style={styles.dateText}>{date.toLocaleDateString()}</Text>
-                <Ionicons name="calendar" size={24} color="#007AFF" />
+                <Ionicons name="calendar" size={24} color={PRIMARY_COLOR} />
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -352,7 +352,7 @@ const InputScreen: React.FC = () => {
                 <Text style={styles.dateText}>
                   {date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </Text>
-                <Ionicons name="time" size={24} color="#007AFF" />
+                <Ionicons name="time" size={24} color={PRIMARY_COLOR} />
               </TouchableOpacity>
             </View>
 
@@ -618,7 +618,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   activePayerText: {
-    color: '#007AFF',
+    color: PRIMARY_COLOR,
     fontWeight: '600',
   },
   inactivePayerText: {
@@ -666,7 +666,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   submitButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: PRIMARY_COLOR,
     padding: 16,
     borderRadius: 12,
     alignItems: 'center',
@@ -684,11 +684,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#007AFF',
+    borderColor: PRIMARY_COLOR,
     width: '100%', // Ensure full width
   },
   cancelButtonText: {
-    color: '#007AFF',
+    color: PRIMARY_COLOR,
     fontSize: 16,
     fontWeight: '600',
   },
@@ -720,7 +720,7 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   backButtonText: {
-    color: '#007AFF',
+    color: PRIMARY_COLOR,
     fontSize: 17,
     marginLeft: 4,
   },
@@ -750,8 +750,8 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   selectedAmountType: {
-    backgroundColor: '#007AFF',
-    borderColor: '#007AFF',
+    backgroundColor: PRIMARY_COLOR,
+    borderColor: PRIMARY_COLOR,
   },
   unselectedAmountType: {
     backgroundColor: 'white',

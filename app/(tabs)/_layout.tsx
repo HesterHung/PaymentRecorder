@@ -3,13 +3,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BackHandler } from 'react-native';
 import { useEffect } from 'react';
+import { PRIMARY_COLOR } from '@/constants/Colors';
 
 export default function TabsLayout() {
   const router = useRouter();
   const pathname = usePathname();
   const { source } = useLocalSearchParams();
 
-  // Check if current route should hide tab bar
   const hideTabBar = pathname.includes('standard-input');
 
   useEffect(() => {
@@ -45,8 +45,11 @@ export default function TabsLayout() {
       <Tabs 
         screenOptions={{
           headerShown: false,
+          tabBarActiveTintColor: PRIMARY_COLOR, 
+          tabBarInactiveTintColor: '#8E8E93',
           tabBarStyle: {
-            display: hideTabBar ? 'none' : 'flex'
+            display: hideTabBar ? 'none' : 'flex',
+            backgroundColor: '#ffffff', 
           }
         }}
       >

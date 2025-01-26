@@ -6,6 +6,7 @@ import { useEffect } from 'react';
 import { AppState, Dimensions } from 'react-native';
 import { UploadService } from '../../services/uploadService';
 import { useCameraPermissions } from 'expo-camera';
+import { PRIMARY_COLOR } from '@/constants/Colors';
 
 const { width } = Dimensions.get('window');
 
@@ -36,7 +37,7 @@ export default function Page() {
                 <TouchableOpacity
                     style={{
                         padding: 8,
-                        backgroundColor: '#007AFF',
+                        backgroundColor: PRIMARY_COLOR,
                         borderRadius: 50
 
                         ,
@@ -66,7 +67,7 @@ export default function Page() {
                     style={{
                         width: width * 0.8,
                         height: 160,
-                        backgroundColor: '#007AFF',
+                        backgroundColor: PRIMARY_COLOR,
                         borderRadius: 16,
                         justifyContent: 'center',
                         alignItems: 'center',

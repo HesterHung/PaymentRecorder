@@ -65,23 +65,6 @@ const ProfilePage = () => {
     return (
         <ScrollView style={styles.container}>
             <View style={styles.content}>
-                {/* Current User Section */}
-                <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Current User</Text>
-                    <View style={styles.currentUserCard}>
-                        <Ionicons
-                            name="person-circle"
-                            size={40}
-                            color={USER_COLORS[currentUserIndex]}
-                        />
-                        <Text style={[
-                            styles.currentUserText,
-                            { color: USER_COLORS[currentUserIndex] }
-                        ]}>
-                            {currentUser}
-                        </Text>
-                    </View>
-                </View>
 
                 {/* Users List Section */}
                 <View style={styles.section}>
