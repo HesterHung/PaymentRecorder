@@ -1,54 +1,76 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-type UserStorageListener = () => void;
+const USER_STORAGE_KEY = 'users';
+const CURRENT_USER_KEY = 'currentUser';
 
 class UserStorageService {
-    private listeners: UserStorageListener[] = [];
-    private currentUser: string = '';
+  private currentUser: string = '';
+  private subscribers: (() => void)[] = [];
 
-    constructor() {
-        // Initialize from AsyncStorage
-        this.initializeUser();
-    }
-
-    private async initializeUser() {
-        try {
-            const savedUser = await AsyncStorage.getItem('currentUser');
-            if (savedUser) {
-                this.currentUser = savedUser;
-                this.notifyListeners();
-            }
-        } catch (error) {
-            console.error('Error initializing user:', error);
+  async getUsers(): Promise<[string, string]> {
+    try {
+      const savedUsers = await AsyncStorage.getItem(USER_STORAGE_KEY);
+      if (savedUsers) {
+        const parsedUsers = JSON.parse(savedUsers);
+        if (Array.isArray(parsedUsers) && parsedUsers.length >= 2) {
+          return [parsedUsers[0], parsedUsers[1]];
         }
+      }
+      // Default users if none found
+      return ['User 1', 'User 2'];
+    } catch (error) {
+      console.error('Error loading users:', error);
+      return ['User 1', 'User 2'];
     }
+  }
 
-    getCurrentUser(): string {
-        return this.currentUser;
+  async setUsers(users: [string, string]): Promise<void> {
+    try {
+      await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(users));
+      this.notifySubscribers();
+    } catch (error) {
+      console.error('Error saving users:', error);
     }
+  }
 
-    async setCurrentUser(user: string): Promise<void> {
-        try {
-            await AsyncStorage.setItem('currentUser', user);
-            this.currentUser = user;
-            this.notifyListeners();
-        } catch (error) {
-            console.error('Error setting user:', error);
-            throw error;
-        }
-    }
+  getCurrentUser(): string {
+    return this.currentUser;
+  }
 
-    subscribe(listener: UserStorageListener): () => void {
-        this.listeners.push(listener);
-        return () => {
-            this.listeners = this.listeners.filter(l => l !== listener);
-        };
+  async setCurrentUser(user: string): Promise<void> {
+    try {
+      await AsyncStorage.setItem(CURRENT_USER_KEY, user);
+      this.currentUser = user;
+      this.notifySubscribers();
+    } catch (error) {
+      console.error('Error saving current user:', error);
     }
+  }
 
-    private notifyListeners(): void {
-        this.listeners.forEach(listener => listener());
+  async initialize(): Promise<void> {
+    try {
+      const savedCurrentUser = await AsyncStorage.getItem(CURRENT_USER_KEY);
+      if (savedCurrentUser) {
+        this.currentUser = savedCurrentUser;
+      } else {
+        const [defaultUser] = await this.getUsers();
+        await this.setCurrentUser(defaultUser);
+      }
+    } catch (error) {
+      console.error('Error initializing user storage:', error);
     }
+  }
+
+  subscribe(callback: () => void): () => void {
+    this.subscribers.push(callback);
+    return () => {
+      this.subscribers = this.subscribers.filter(sub => sub !== callback);
+    };
+  }
+
+  private notifySubscribers(): void {
+    this.subscribers.forEach(callback => callback());
+  }
 }
 
-export const userStorage = new UserStorageService();
-export default userStorage;
+export default new UserStorageService();

@@ -30,6 +30,34 @@ const InputScreen: React.FC = () => {
   const [whoPaid, setWhoPaid] = useState<string>('');
 
 
+  useEffect(() => {
+    const loadUsers = async () => {
+      try {
+        const loadedUsers = await userStorage.getUsers();
+        setUsers(loadedUsers);
+
+        // Set the current user as the payer if not in edit mode
+        if (!existingPayment) {
+          const currentUser = userStorage.getCurrentUser();
+          if (currentUser) {
+            setWhoPaid(currentUser);
+          }
+        }
+      } catch (error) {
+        console.error('Error loading users:', error);
+      }
+    };
+
+    loadUsers();
+
+    // Subscribe to user changes
+    const unsubscribe = userStorage.subscribe(() => {
+      loadUsers();
+    });
+
+    return () => unsubscribe();
+  }, [existingPayment]);
+
   const hasUnsavedChanges = useMemo(() => {
     return !!(title || totalAmount || specificAmount || receipt);
   }, [title, totalAmount, specificAmount, receipt]);

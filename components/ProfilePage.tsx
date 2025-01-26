@@ -12,48 +12,34 @@ const ProfilePage = () => {
 
     useEffect(() => {
         const loadData = async () => {
-            try {
-                const savedUsers = await AsyncStorage.getItem('users');
-                const savedCurrentUser = userStorage.getCurrentUser();
-                
-                if (savedUsers) {
-                    const parsedUsers = JSON.parse(savedUsers);
-                    // Ensure we always have exactly 2 users
-                    if (parsedUsers.length >= 2) {
-                        setUsers([parsedUsers[0], parsedUsers[1]]);
-                    }
-                } else {
-                    // Initialize with default users if none exist
-                    await AsyncStorage.setItem('users', JSON.stringify(['User 1', 'User 2']));
-                }
-                
-                setCurrentUser(savedCurrentUser);
-            } catch (error) {
-                console.error('Error loading data:', error);
-            }
+            const loadedUsers = await userStorage.getUsers();
+            setUsers(loadedUsers);
+            setCurrentUser(userStorage.getCurrentUser());
         };
+
         loadData();
+
+        const unsubscribe = userStorage.subscribe(() => {
+            loadData();
+        });
+
+        return () => unsubscribe();
     }, []);
 
     const handleUpdateUser = async (index: number, newName: string) => {
         if (newName.trim()) {
             const newUsers: [string, string] = [...users] as [string, string];
             newUsers[index] = newName.trim();
-            setUsers(newUsers);
-            
+
             try {
-                await AsyncStorage.setItem('users', JSON.stringify(newUsers));
-                
-                // Update current user if it was renamed
+                await userStorage.setUsers(newUsers);
                 if (currentUser === users[index]) {
                     await userStorage.setCurrentUser(newName.trim());
-                    setCurrentUser(newName.trim());
                 }
-                
+                setUsers(newUsers);
                 setEditingUser(null);
                 setEditName('');
             } catch (error) {
-                console.error('Error saving users:', error);
                 Alert.alert('Error', 'Failed to save user changes');
             }
         }
@@ -64,7 +50,6 @@ const ProfilePage = () => {
             await userStorage.setCurrentUser(user);
             setCurrentUser(user);
         } catch (error) {
-            console.error('Error setting default user:', error);
             Alert.alert('Error', 'Failed to set default user');
         }
     };
