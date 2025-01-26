@@ -8,6 +8,7 @@ import { StorageUtils } from '@/utils/storage';
 import Toast from 'react-native-toast-message';
 import userStorage from '@/services/userStorage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { USER_COLORS } from '@/constants/Colors';
 
 
 //components\InputScreen.tsx
@@ -598,8 +599,8 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   activePayerCircle: {
-    backgroundColor: '#007AFF',
-    borderColor: '#007AFF',
+    backgroundColor: USER_COLORS[0],
+    borderColor: USER_COLORS[0],
   },
   inactivePayerCircle: {
     backgroundColor: 'white',

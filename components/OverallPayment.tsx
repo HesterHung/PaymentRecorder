@@ -8,6 +8,7 @@ import { Alert } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import userStorage from '@/services/userStorage';
 import { BalanceSummaryText, calculatePaymentBalance, formatBalance } from '@/utils/paymentCalculator';
+import { USER_COLORS } from '@/constants/Colors';
 
 const { width } = Dimensions.get('window');
 const peopleNumber = 2;
@@ -182,7 +183,9 @@ const OverallPayment: React.FC = () => {
           </View>
           <View style={[
             styles.amountContainer,
-            { backgroundColor: item.whoPaid === users[0] ? '#007AFF' : '#34C759' }
+            {
+              backgroundColor: item.whoPaid === users[0] ? USER_COLORS[0] : USER_COLORS[1]
+            }
           ]}>
             <Text style={styles.amountText}>
               ${displayAmount.toFixed(2)}
@@ -201,7 +204,9 @@ const OverallPayment: React.FC = () => {
               />
               <Text style={[
                 styles.payerName,
-                { color: item.whoPaid === users[0] ? '#007AFF' : '#34C759' }
+                {
+                  color: item.whoPaid === users[0] ? USER_COLORS[0] : USER_COLORS[1]
+                }
               ]}>
                 {item.whoPaid}
               </Text>

@@ -2,8 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, Alert, ScrollView, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import userStorage from '@/services/userStorage';
-
-const USER_COLORS = ['#2563eb', '#dc2626']; // blue for index 0, red for index 1
+import { USER_COLORS } from '@/constants/Colors';
 
 const ProfilePage = () => {
     const [users, setUsers] = useState<[string, string]>(['User 1', 'User 2']);

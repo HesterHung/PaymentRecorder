@@ -1,28 +1,28 @@
+import { USER_COLORS } from '@/constants/Colors';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const USER_STORAGE_KEY = 'users';
 const CURRENT_USER_KEY = 'currentUser';
 
-export const USER_COLORS = {
-    'User 1': '#2563eb', // blue
-    'User 2': '#dc2626', // red
-    'Hester': '#2563eb',  // blue
-    'Lok': '#dc2626',    // red
-} as const;
-
-export type UserColor = typeof USER_COLORS[keyof typeof USER_COLORS];
+export type UserColor = typeof USER_COLORS[0 | 1];
 
 class UserStorageService {
     private currentUser: string = '';
     private subscribers: (() => void)[] = [];
 
-    // Add this method to the UserStorageService class:
-    getUserColor(username: string): string {
-        return USER_COLORS[username as keyof typeof USER_COLORS] || '#6b7280';
+    // Cache for users to avoid excessive AsyncStorage calls
+    private cachedUsers: [string, string] | null = null;
+
+    async getUserColor(username: string): Promise<string> {
+        const users = await this.getUsers();
+        const index = users.indexOf(username);
+        return index >= 0 && index < USER_COLORS.length ? USER_COLORS[index] : '#6b7280';
     }
 
-    getCurrentUserColor(): string {
-        return this.getUserColor(this.currentUser);
+    async getCurrentUserColor(): Promise<string> {
+        const users = await this.getUsers();
+        const index = users.indexOf(this.currentUser);
+        return index >= 0 && index < USER_COLORS.length ? USER_COLORS[index] : '#6b7280';
     }
 
     async initializeCurrentUser(): Promise<void> {
@@ -42,26 +42,36 @@ class UserStorageService {
 
     async getUsers(): Promise<[string, string]> {
         try {
+            // Return cached users if available
+            if (this.cachedUsers) {
+                return this.cachedUsers;
+            }
+
             const savedUsers = await AsyncStorage.getItem(USER_STORAGE_KEY);
             if (savedUsers) {
                 const parsedUsers = JSON.parse(savedUsers);
                 if (Array.isArray(parsedUsers) && parsedUsers.length >= 2) {
-                    return [parsedUsers[0], parsedUsers[1]];
+                    this.cachedUsers = [parsedUsers[0], parsedUsers[1]];
+                    return this.cachedUsers;
                 }
             }
             // Default users if none found
             const defaultUsers: [string, string] = ['User 1', 'User 2'];
             await this.setUsers(defaultUsers);
+            this.cachedUsers = defaultUsers;
             return defaultUsers;
         } catch (error) {
             console.error('Error loading users:', error);
-            return ['User 1', 'User 2'];
+            const defaultUsers: [string, string] = ['User 1', 'User 2'];
+            this.cachedUsers = defaultUsers;
+            return defaultUsers;
         }
     }
 
     async setUsers(users: [string, string]): Promise<void> {
         try {
             await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(users));
+            this.cachedUsers = users; // Update cache
             // If current user is not in the new users list, update it to the first user
             if (!users.includes(this.currentUser)) {
                 await this.setCurrentUser(users[0]);

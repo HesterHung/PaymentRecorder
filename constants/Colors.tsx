@@ -24,3 +24,5 @@ export const Colors = {
     tabIconSelected: tintColorDark,
   },
 };
+export const USER_COLORS = ['#2563eb', '#dc2626'] as const; // blue for index 0, red for index 1
+export type UserColorIndex = 0 | 1;
