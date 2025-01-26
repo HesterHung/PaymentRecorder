@@ -9,15 +9,16 @@ export default function TabsLayout() {
   const pathname = usePathname();
   const { source } = useLocalSearchParams();
 
+  // Check if current route should hide tab bar
+  const hideTabBar = pathname.includes('standard-input');
+
   useEffect(() => {
     const backAction = () => {
       if (pathname.includes('standard-input')) {
-        // Default fallback to home
         router.replace('/');
         return true;
       }
 
-      // For main tabs
       const mainTabs = ['/', '/index', '/overall-payment'];
       if (mainTabs.includes(pathname)) {
         if (pathname === '/' || pathname === '/index') {
@@ -41,7 +42,14 @@ export default function TabsLayout() {
 
   return (
     <SafeAreaView style={{ flex: 1 }}>
-      <Tabs screenOptions={{ headerShown: false }}>
+      <Tabs 
+        screenOptions={{
+          headerShown: false,
+          tabBarStyle: {
+            display: hideTabBar ? 'none' : 'flex'
+          }
+        }}
+      >
         <Tabs.Screen
           name="index"
           options={{
@@ -54,13 +62,14 @@ export default function TabsLayout() {
         <Tabs.Screen
           name="standard-input"
           options={{
-            href: null, // This hides it from the tab bar
+            href: null,
+            tabBarStyle: { display: 'none' }
           }}
         />
         <Tabs.Screen
           name="profile-page"
           options={{
-            href: null, // This hides it from the tab bar
+            href: null,
           }}
         />
         <Tabs.Screen

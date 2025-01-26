@@ -29,6 +29,7 @@ const InputScreen: React.FC = () => {
   const [users, setUsers] = useState<[string, string]>(['User 1', 'User 2']);
   const [whoPaid, setWhoPaid] = useState<string>('');
 
+
   const hasUnsavedChanges = useMemo(() => {
     return !!(title || totalAmount || specificAmount || receipt);
   }, [title, totalAmount, specificAmount, receipt]);
@@ -234,89 +235,6 @@ const InputScreen: React.FC = () => {
     }
   }, [params.existingPayment]);
 
-
-  const handleImageSelection = () => {
-    if (Platform.OS === 'ios') {
-      Alert.alert(
-        "Add Receipt",
-        "Choose an option",
-        [
-          {
-            text: "Choose from Library",
-            onPress: async () => {
-              const result = await ImagePicker.launchImageLibraryAsync({
-                mediaTypes: ImagePicker.MediaTypeOptions.Images,
-                allowsEditing: true,
-                allowsMultipleSelection: false,
-                quality: 1,
-              });
-
-              if (result.assets && result.assets.length > 0) {
-                setReceipt(result.assets[0].uri);
-              }
-            }
-          },
-          {
-            text: "Take Photo",
-            onPress: async () => {
-              const { status } = await Camera.requestCameraPermissionsAsync();
-              if (status === 'granted') {
-                const result = await ImagePicker.launchCameraAsync({
-                  allowsEditing: true,
-                  allowsMultipleSelection: false,
-                  quality: 1,
-                });
-
-                if (result.assets && result.assets.length > 0) {
-                  setReceipt(result.assets[0].uri);
-                }
-              }
-            }
-          },
-        ]
-      );
-    } else {
-      Alert.alert(
-        "Add Receipt",
-        "Choose an option",
-        [
-          {
-            text: "Take Photo",
-            onPress: async () => {
-              const { status } = await Camera.requestCameraPermissionsAsync();
-              if (status === 'granted') {
-                const result = await ImagePicker.launchCameraAsync({
-                  allowsEditing: true,
-                  allowsMultipleSelection: false,
-                  quality: 1,
-                });
-
-                if (result.assets && result.assets.length > 0) {
-                  setReceipt(result.assets[0].uri);
-                }
-              }
-            }
-          },
-          {
-            text: "Choose from Library",
-            onPress: async () => {
-              const result = await ImagePicker.launchImageLibraryAsync({
-                mediaTypes: ImagePicker.MediaTypeOptions.Images,
-                allowsEditing: true,
-                allowsMultipleSelection: false,
-                quality: 1,
-              });
-
-              if (result.assets && result.assets.length > 0) {
-                setReceipt(result.assets[0].uri);
-              }
-            }
-          },
-        ],
-        { cancelable: true }
-      );
-    }
-  };
   async function handleSubmit(event: GestureResponderEvent): Promise<void> {
     try {
       const numericAmount = amountType === 'total'
@@ -372,190 +290,174 @@ const InputScreen: React.FC = () => {
     }
   }
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.formContainer}>
-        <Text style={styles.screenTitle}>
+
+    <View style={styles.pageContainer}> {/* New wrapper View */}
+      <View style={styles.header}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={handleCancel} // Using existing handleCancel function
+        >
+          <Ionicons name="chevron-back" size={24} color="#007AFF" />
+          <Text style={styles.backButtonText}>Back</Text>
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>
           {existingPayment ? 'Edit Payment' : 'New Payment'}
         </Text>
-        {/* Date Section */}
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Date and Time</Text>
-          <View style={styles.dateTimeContainer}>
-            <TouchableOpacity
-              style={[styles.dateButton, styles.dateTimeButton]}
-              onPress={() => setShowDatePicker(true)}
-            >
-              <Text style={styles.dateText}>{date.toLocaleDateString()}</Text>
-              <Ionicons name="calendar" size={24} color="#007AFF" />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.dateButton, styles.dateTimeButton]}
-              onPress={() => setShowTimePicker(true)}
-            >
-              <Text style={styles.dateText}>
-                {date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-              </Text>
-              <Ionicons name="time" size={24} color="#007AFF" />
-            </TouchableOpacity>
-          </View>
-
-          {showDatePicker && (
-            <DateTimePicker
-              value={date}
-              mode="date"
-              onChange={(event, selectedDate) => {
-                setShowDatePicker(false);
-                if (selectedDate) setDate(selectedDate);
-              }}
-            />
-          )}
-
-          {showTimePicker && (
-            <DateTimePicker
-              value={date}
-              mode="time"
-              onChange={(event, selectedDate) => {
-                setShowTimePicker(false);
-                if (selectedDate) setDate(selectedDate);
-              }}
-            />
-          )}
-        </View>
-
-        {/* Title Section */}
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Title</Text>
-          <View style={styles.inputWrapper}>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter a description (optional)"
-              value={title}
-              onChangeText={setTitle}
-            />
-          </View>
-        </View>
-
-        {/* Who Paid Section */}
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Who paid?</Text>
-          <View style={styles.payerButtons}>
-            {users.map((payer) => (
+        <View style={styles.headerRightPlaceholder} /> {/* Empty View for centering */}
+      </View>
+      <ScrollView style={styles.container}>
+        <View style={styles.formContainer}>
+          {/* Date Section */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Date and Time</Text>
+            <View style={styles.dateTimeContainer}>
               <TouchableOpacity
-                key={payer}
-                style={[
-                  styles.payerButton,
-                  whoPaid === payer && styles.selectedPayer
-                ]}
-                onPress={() => setWhoPaid(payer)}
+                style={[styles.dateButton, styles.dateTimeButton]}
+                onPress={() => setShowDatePicker(true)}
               >
-                <Ionicons
-                  name={whoPaid === payer ? "person" : "person-outline"}
-                  size={24}
-                  color={whoPaid === payer ? 'white' : '#007AFF'}
-                />
-                <Text style={[styles.payerText, whoPaid === payer && styles.selectedPayerText]}>
-                  {payer}
+                <Text style={styles.dateText}>{date.toLocaleDateString()}</Text>
+                <Ionicons name="calendar" size={24} color="#007AFF" />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.dateButton, styles.dateTimeButton]}
+                onPress={() => setShowTimePicker(true)}
+              >
+                <Text style={styles.dateText}>
+                  {date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </Text>
+                <Ionicons name="time" size={24} color="#007AFF" />
+              </TouchableOpacity>
+            </View>
+
+            {showDatePicker && (
+              <DateTimePicker
+                value={date}
+                mode="date"
+                onChange={(event, selectedDate) => {
+                  setShowDatePicker(false);
+                  if (selectedDate) setDate(selectedDate);
+                }}
+              />
+            )}
+
+            {showTimePicker && (
+              <DateTimePicker
+                value={date}
+                mode="time"
+                onChange={(event, selectedDate) => {
+                  setShowTimePicker(false);
+                  if (selectedDate) setDate(selectedDate);
+                }}
+              />
+            )}
+          </View>
+
+          {/* Title Section */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Title</Text>
+            <View style={styles.inputWrapper}>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter a description (optional)"
+                value={title}
+                onChangeText={setTitle}
+              />
+            </View>
+          </View>
+
+          {/* Who Paid Section */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Who paid?</Text>
+            <View style={styles.payerButtons}>
+              {users.map((payer) => (
+                <TouchableOpacity
+                  key={payer}
+                  style={[
+                    styles.payerButton,
+                    whoPaid === payer && styles.selectedPayer
+                  ]}
+                  onPress={() => setWhoPaid(payer)}
+                >
+                  <Ionicons
+                    name={whoPaid === payer ? "person" : "person-outline"}
+                    size={24}
+                    color={whoPaid === payer ? 'white' : '#007AFF'}
+                  />
+                  <Text style={[styles.payerText, whoPaid === payer && styles.selectedPayerText]}>
+                    {payer}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          {/* Amount Section */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Amount Type</Text>
+            <View style={styles.amountTypeContainer}>
+              <TouchableOpacity
+                style={[
+                  styles.amountTypeButton,
+                  amountType === 'total' && styles.selectedAmountType
+                ]}
+                onPress={() => setAmountType('total')}
+              >
+                <Text style={[
+                  styles.amountTypeText,
+                  amountType === 'total' && styles.selectedAmountTypeText
+                ]}>
+                  Total Amount
                 </Text>
               </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
-        {/* Amount Section */}
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Amount Type</Text>
-          <View style={styles.amountTypeContainer}>
-            <TouchableOpacity
-              style={[
-                styles.amountTypeButton,
-                amountType === 'total' && styles.selectedAmountType
-              ]}
-              onPress={() => setAmountType('total')}
-            >
-              <Text style={[
-                styles.amountTypeText,
-                amountType === 'total' && styles.selectedAmountTypeText
-              ]}>
-                Total Amount
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.amountTypeButton,
-                amountType === 'specific' && styles.selectedAmountType
-              ]}
-              onPress={() => setAmountType('specific')}
-            >
-              <Text style={[
-                styles.amountTypeText,
-                amountType === 'specific' && styles.selectedAmountTypeText
-              ]}>
-                Specific Amount
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.inputWrapper}>
-            <Text style={styles.currencySymbol}>$</Text>
-            <TextInput
-              style={[styles.input, styles.amountInput]}
-              placeholder={amountType === 'total' ? "Enter total amount (system will divide it by 2)" : "Enter specific amount paid for another one"}
-              value={amountType === 'total' ? totalAmount : specificAmount}
-              onChangeText={amountType === 'total' ? setTotalAmount : setSpecificAmount}
-              keyboardType="decimal-pad"
-            />
-          </View>
-        </View>
-
-        {/* Receipt Section */}
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Receipt Image (if any)</Text>
-          <TouchableOpacity style={styles.imageButton} onPress={handleImageSelection}>
-            <Ionicons name="camera" size={24} color="white" />
-            <Text style={styles.imageButtonText}>
-              {receipt ? 'Change Receipt Image' : 'Add Receipt Image'}
-            </Text>
-          </TouchableOpacity>
-          {receipt && (
-            <View style={styles.imageContainer}>
-              <View style={styles.imageHeaderContainer}>
-                <TouchableOpacity
-                  style={styles.clearImageButton}
-                  onPress={() => setReceipt(null)}
-                >
-                  <Ionicons name="close-circle" size={24} color="#FF3B30" />
-                  <Text style={styles.clearImageText}>Clear Image</Text>
-                </TouchableOpacity>
-              </View>
-              <Image
-                source={{ uri: receipt }}
-                style={styles.image}
-                resizeMode="cover"
-                onError={(e) => console.error('Image loading error:', e.nativeEvent.error)}
-                onLoad={() => console.log('Image loaded successfully')}
-              />
-              <Text style={styles.imageUri}>{receipt}</Text> {/* Temporary: to verify the URI */}
+              <TouchableOpacity
+                style={[
+                  styles.amountTypeButton,
+                  amountType === 'specific' && styles.selectedAmountType
+                ]}
+                onPress={() => setAmountType('specific')}
+              >
+                <Text style={[
+                  styles.amountTypeText,
+                  amountType === 'specific' && styles.selectedAmountTypeText
+                ]}>
+                  Specific Amount
+                </Text>
+              </TouchableOpacity>
             </View>
-          )}
+
+            <View style={styles.inputWrapper}>
+              <Text style={styles.currencySymbol}>$</Text>
+              <TextInput
+                style={[styles.input, styles.amountInput]}
+                placeholder={amountType === 'total' ? "Enter total amount (system will divide it by 2)" : "Enter specific amount paid for another one"}
+                value={amountType === 'total' ? totalAmount : specificAmount}
+                onChangeText={amountType === 'total' ? setTotalAmount : setSpecificAmount}
+                keyboardType="decimal-pad"
+              />
+            </View>
+          </View>
+
+
+
+          {/* Submit and Cancel Buttons */}
+          <TouchableOpacity
+            style={styles.submitButton}
+            onPress={handleSubmit}
+          >
+            <Text style={styles.submitButtonText}>Save Expense</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.cancelButton}
+            onPress={handleCancel}
+          >
+            <Text style={styles.cancelButtonText}>Cancel</Text>
+          </TouchableOpacity>
         </View>
+      </ScrollView>
+    </View>
 
-        {/* Submit and Cancel Buttons */}
-        <TouchableOpacity
-          style={styles.submitButton}
-          onPress={handleSubmit}
-        >
-          <Text style={styles.submitButtonText}>Save Expense</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.cancelButton}
-          onPress={handleCancel}
-        >
-          <Text style={styles.cancelButtonText}>Cancel</Text>
-        </TouchableOpacity>
-      </View>
-    </ScrollView>
   );
 };
 
@@ -762,6 +664,39 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#666',
     marginTop: 4,
+  },
+  pageContainer: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === 'ios' ? 8 : 16,
+    paddingBottom: 8,
+    backgroundColor: '#f5f5f5',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+  },
+  backButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 8,
+  },
+  backButtonText: {
+    color: '#007AFF',
+    fontSize: 17,
+    marginLeft: 4,
+  },
+  headerTitle: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#000',
+  },
+  headerRightPlaceholder: {
+    width: 70, // Approximately the same width as the back button
   },
 
 });
