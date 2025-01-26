@@ -200,7 +200,7 @@ const OverallPayment: React.FC = () => {
               <Ionicons
                 name="person"
                 size={16}
-                color={item.whoPaid === users[0] ? '#007AFF' : '#34C759'}
+                color={item.whoPaid === users[0] ? USER_COLORS[0] : USER_COLORS[1]}
               />
               <Text style={[
                 styles.payerName,
