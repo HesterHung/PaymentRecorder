@@ -24,23 +24,12 @@ export default function Page() {
         };
     }, []);
 
-    const handleAddReceipt = async () => {
-        if (!permission?.granted) {
-            const permissionResult = await requestPermission();
-            if (permissionResult.granted) {
-                router.push('/receipt-capture');
-            }
-        } else {
-            router.push('/receipt-capture');
-        }
-    };
-
     return (
         <View style={{ flex: 1, backgroundColor: '#f5f5f5' }}>
             {/* Profile Button */}
-            <View style={{ 
-                position: 'absolute', 
-                top: 48,
+            <View style={{
+                position: 'absolute',
+                top: 20,
                 right: 16,
                 zIndex: 10
             }}>
@@ -48,7 +37,9 @@ export default function Page() {
                     style={{
                         padding: 8,
                         backgroundColor: '#007AFF',
-                        borderRadius: 12,
+                        borderRadius: 50
+
+                        ,
                         shadowColor: '#000',
                         shadowOffset: {
                             width: 0,
@@ -99,33 +90,7 @@ export default function Page() {
                     }}>Standard Input</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity
-                    style={{
-                        width: width * 0.8,
-                        height: 160,
-                        backgroundColor: '#007AFF',
-                        borderRadius: 16,
-                        justifyContent: 'center',
-                        alignItems: 'center',
-                        elevation: 3,
-                        shadowColor: '#000',
-                        shadowOffset: {
-                            width: 0,
-                            height: 2,
-                        },
-                        shadowOpacity: 0.25,
-                        shadowRadius: 3.84,
-                    }}
-                    onPress={handleAddReceipt}
-                >
-                    <Ionicons name="camera-outline" size={48} color="white" />
-                    <Text style={{
-                        color: 'white',
-                        fontSize: 24,
-                        fontWeight: '600',
-                        marginTop: 10,
-                    }}>Add Receipt</Text>
-                </TouchableOpacity>
+
             </View>
         </View>
     );

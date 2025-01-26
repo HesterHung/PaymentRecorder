@@ -46,7 +46,7 @@ export const PayersService = {
 
   async initialize() {
     const payers = await CONSTANTS.updatePayers();
-    this.setPayers(payers);
+    this.setPayers(payers[0]);
   }
 };
 
@@ -61,7 +61,6 @@ export interface Payment {
   amount: number;
   amountType: string;
   date: number;
-  uri: string | null;
   serverUri: string | null;
   isUploaded: boolean;
   uploadError?: string | null;

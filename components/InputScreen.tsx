@@ -219,7 +219,6 @@ const InputScreen: React.FC = () => {
         setWhoPaid(payment.whoPaid);
         setAmountType(payment.amountType as 'total' | 'specific');
         setDate(new Date(payment.date));
-        setReceipt(payment.uri);
 
         // Set the amount in the correct input field
         if (payment.amountType === 'total') {
@@ -335,7 +334,6 @@ const InputScreen: React.FC = () => {
         amount: numericAmount,
         amountType,
         date: date.getTime(),
-        uri: receipt,
         serverUri: existingPayment?.serverUri || null,
         uploadStatus: 'uploading',
         imageUploadStatus: 'uploading'

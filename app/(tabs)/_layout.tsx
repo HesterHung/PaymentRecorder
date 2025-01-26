@@ -11,20 +11,14 @@ export default function TabsLayout() {
 
   useEffect(() => {
     const backAction = () => {
-      // If currently on standard-input or receipt-capture
-      if (pathname.includes('standard-input') || pathname.includes('receipt-capture')) {
-        // Check the source parameter
-        if (source === 'receipt-box') {
-          router.replace('/receipt-box');
-          return true;
-        }
+      if (pathname.includes('standard-input')) {
         // Default fallback to home
         router.replace('/');
         return true;
       }
 
       // For main tabs
-      const mainTabs = ['/', '/index', '/receipt-box', '/overall-payment'];
+      const mainTabs = ['/', '/index', '/overall-payment'];
       if (mainTabs.includes(pathname)) {
         if (pathname === '/' || pathname === '/index') {
           BackHandler.exitApp();
@@ -64,24 +58,9 @@ export default function TabsLayout() {
           }}
         />
         <Tabs.Screen
-          name="receipt-capture"
-          options={{
-            href: null, // This hides it from the tab bar
-          }}
-        />
-        <Tabs.Screen
           name="profile-page"
           options={{
             href: null, // This hides it from the tab bar
-          }}
-        />
-        <Tabs.Screen
-          name="receipt-box"
-          options={{
-            title: 'Receipts',
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="receipt" size={size} color={color} />
-            ),
           }}
         />
         <Tabs.Screen
