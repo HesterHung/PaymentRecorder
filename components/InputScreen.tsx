@@ -403,13 +403,18 @@ const InputScreen: React.FC = () => {
               <TouchableOpacity
                 style={[
                   styles.amountTypeButton,
-                  amountType === 'total' && styles.selectedAmountType
+                  amountType === 'total' ? styles.selectedAmountType : styles.unselectedAmountType
                 ]}
                 onPress={() => setAmountType('total')}
               >
+                <Ionicons
+                  name="cash-outline"
+                  size={24}
+                  color={amountType === 'total' ? 'white' : '#6B7280'}
+                />
                 <Text style={[
                   styles.amountTypeText,
-                  amountType === 'total' && styles.selectedAmountTypeText
+                  amountType === 'total' ? styles.selectedAmountTypeText : styles.unselectedAmountTypeText
                 ]}>
                   Total Amount
                 </Text>
@@ -417,13 +422,18 @@ const InputScreen: React.FC = () => {
               <TouchableOpacity
                 style={[
                   styles.amountTypeButton,
-                  amountType === 'specific' && styles.selectedAmountType
+                  amountType === 'specific' ? styles.selectedAmountType : styles.unselectedAmountType
                 ]}
                 onPress={() => setAmountType('specific')}
               >
+                <Ionicons
+                  name="git-branch-outline"
+                  size={24}
+                  color={amountType === 'specific' ? 'white' : '#6B7280'}
+                />
                 <Text style={[
                   styles.amountTypeText,
-                  amountType === 'specific' && styles.selectedAmountTypeText
+                  amountType === 'specific' ? styles.selectedAmountTypeText : styles.unselectedAmountTypeText
                 ]}>
                   Specific Amount
                 </Text>
@@ -434,10 +444,13 @@ const InputScreen: React.FC = () => {
               <Text style={styles.currencySymbol}>$</Text>
               <TextInput
                 style={[styles.input, styles.amountInput]}
-                placeholder={amountType === 'total' ? "Enter total amount (system will divide it by 2)" : "Enter specific amount paid for another one"}
+                placeholder={amountType === 'total'
+                  ? "Enter total amount to split"
+                  : "Enter specific amount you pay for other"}
                 value={amountType === 'total' ? totalAmount : specificAmount}
                 onChangeText={amountType === 'total' ? setTotalAmount : setSpecificAmount}
                 keyboardType="decimal-pad"
+                placeholderTextColor="#9CA3AF"  // Add this to style the placeholder text
               />
             </View>
           </View>
@@ -485,27 +498,10 @@ const styles = StyleSheet.create({
     color: '#333',
     marginBottom: 8,
   },
-  inputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'white',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-  },
   currencySymbol: {
     paddingLeft: 15,
     fontSize: 16,
     color: '#666',
-  },
-  input: {
-    flex: 1,
-    padding: 15,
-    fontSize: 14,
-    color: '#333',
-  },
-  amountInput: {
-    textAlign: 'left',
   },
   dateButton: {
     flexDirection: 'row',
@@ -520,6 +516,34 @@ const styles = StyleSheet.create({
   dateText: {
     fontSize: 16,
     color: '#333',
+  },
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'white',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+    minHeight: 56, // Add minimum height
+  },
+  input: {
+    flex: 1,
+    padding: 15,
+    fontSize: 14,
+    color: '#333',
+    paddingRight: 15, // Add right padding
+  },
+  amountInput: {
+    textAlign: 'left',
+    minWidth: 0, // Ensure text can wrap if needed
   },
   payerButtons: {
     flexDirection: 'row',
@@ -565,31 +589,6 @@ const styles = StyleSheet.create({
   },
   inactivePayerText: {
     color: '#9CA3AF',
-  },
-  amountTypeContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-    gap: 12,
-  },
-  amountTypeButton: {
-    flex: 1,
-    padding: 12,
-    backgroundColor: 'white',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#007AFF',
-    alignItems: 'center',
-  },
-  amountTypeText: {
-    fontSize: 16,
-    color: '#007AFF',
-  },
-  selectedAmountType: {
-    backgroundColor: '#007AFF',
-  },
-  selectedAmountTypeText: {
-    color: 'white',
   },
   imageButton: {
     flexDirection: 'row',
@@ -699,7 +698,41 @@ const styles = StyleSheet.create({
   headerRightPlaceholder: {
     width: 70, // Approximately the same width as the back button
   },
-
+  // Add or update these styles in your StyleSheet.create()
+  amountTypeContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+    gap: 12,
+  },
+  amountTypeButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: 8,
+  },
+  selectedAmountType: {
+    backgroundColor: '#007AFF',
+    borderColor: '#007AFF',
+  },
+  unselectedAmountType: {
+    backgroundColor: 'white',
+    borderColor: '#E5E7EB',
+  },
+  amountTypeText: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  selectedAmountTypeText: {
+    color: 'white',
+  },
+  unselectedAmountTypeText: {
+    color: '#6B7280',
+  },
 });
 
 export default InputScreen;
