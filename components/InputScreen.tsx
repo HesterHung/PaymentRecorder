@@ -1,11 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, TextInput, ScrollView, Image, StyleSheet, TouchableOpacity, Text, Alert, GestureResponderEvent, Platform, BackHandler } from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
-import { Camera } from 'expo-camera';
 import { router, useLocalSearchParams } from 'expo-router';
-import { CONSTANTS, Payer, Payment } from '@/types/payment';
+import { Payment } from '@/types/payment';
 import { StorageUtils } from '@/utils/storage';
 import Toast from 'react-native-toast-message';
 import userStorage from '@/services/userStorage';

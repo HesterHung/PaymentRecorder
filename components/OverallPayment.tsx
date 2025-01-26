@@ -7,7 +7,7 @@ import { Payment, GroupedPayments, CONSTANTS } from '../types/payment';
 import { Alert } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import userStorage from '@/services/userStorage';
-import { BalanceDisplay, BalanceSummaryText, calculatePaymentBalance, formatBalance } from '@/utils/paymentCalculator';
+import { BalanceSummaryText, calculatePaymentBalance, formatBalance } from '@/utils/paymentCalculator';
 
 const { width } = Dimensions.get('window');
 const peopleNumber = 2;
@@ -24,18 +24,27 @@ const OverallPayment: React.FC = () => {
   const [totalBalance, setTotalBalance] = useState(0);
   const [expandedMonths, setExpandedMonths] = useState<{ [key: string]: boolean }>({});
   const [currentUser, setCurrentUser] = useState<string>('');
+  const [users, setUsers] = useState<[string, string]>(CONSTANTS.PAYERS);
 
   useEffect(() => {
-    const initializeUser = async () => {
-      const user = userStorage.getCurrentUser();
-      setCurrentUser(user);
+    const initializeUsers = async () => {
+      try {
+        const storedUsers = await userStorage.getUsers();
+        setUsers(storedUsers);
+        const user = userStorage.getCurrentUser();
+        setCurrentUser(user);
+      } catch (error) {
+        console.error('Error initializing users:', error);
+        // Fallback to constants if storage fails
+        setUsers(CONSTANTS.PAYERS);
+      }
     };
 
-    initializeUser();
+    initializeUsers();
 
-    // Subscribe to user changes
     const unsubscribe = userStorage.subscribe(() => {
       setCurrentUser(userStorage.getCurrentUser());
+      userStorage.getUsers().then(setUsers).catch(console.error);
     });
 
     return () => unsubscribe();
@@ -156,9 +165,8 @@ const OverallPayment: React.FC = () => {
     });
 
     const displayAmount = item.amountType === 'total'
-      ? item.amount / peopleNumber
+      ? item.amount / 2
       : item.amount;
-
 
     return (
       <TouchableOpacity
@@ -174,7 +182,7 @@ const OverallPayment: React.FC = () => {
           </View>
           <View style={[
             styles.amountContainer,
-            { backgroundColor: item.whoPaid === CONSTANTS.PAYERS[0] ? '#007AFF' : '#34C759' }
+            { backgroundColor: item.whoPaid === users[0] ? '#007AFF' : '#34C759' }
           ]}>
             <Text style={styles.amountText}>
               ${displayAmount.toFixed(2)}
@@ -189,11 +197,11 @@ const OverallPayment: React.FC = () => {
               <Ionicons
                 name="person"
                 size={16}
-                color={item.whoPaid === CONSTANTS.PAYERS[0] ? '#007AFF' : '#34C759'}
+                color={item.whoPaid === users[0] ? '#007AFF' : '#34C759'}
               />
               <Text style={[
                 styles.payerName,
-                { color: item.whoPaid === CONSTANTS.PAYERS[0] ? '#007AFF' : '#34C759' }
+                { color: item.whoPaid === users[0] ? '#007AFF' : '#34C759' }
               ]}>
                 {item.whoPaid}
               </Text>
@@ -203,7 +211,6 @@ const OverallPayment: React.FC = () => {
       </TouchableOpacity>
     );
   };
-
 
 
   const renderMonthSection = ({ item }: { item: GroupedPayments }) => {
