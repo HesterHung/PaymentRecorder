@@ -138,6 +138,38 @@ const OverallPayment: React.FC = () => {
     }
   };
 
+
+  const handleResetAll = () => {
+    Alert.alert(
+      "Reset All Payments (debug use)",
+      "Are you sure you want to delete all payment records? This action cannot be undone.",
+      [
+        {
+          text: "Cancel",
+          style: "cancel"
+        },
+        {
+          text: "Reset",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await StorageUtils.clearAllPayments();
+              Alert.alert("Success", "All payment records have been deleted.");
+              loadReceipts();
+            } catch (error) {
+              console.error('Error clearing payments:', error);
+              Alert.alert(
+                "Error",
+                "Failed to clear payments. Please try again."
+              );
+            }
+          }
+        }
+      ]
+    );
+  };
+
+
   const renderReceiptItem = ({ item }: { item: Payment }) => {
     const date = new Date(item.date);
     const formattedDate = date.toLocaleDateString();
@@ -190,15 +222,12 @@ const OverallPayment: React.FC = () => {
               </Text>
             </View>
           </View>
-          {item.uri && (
-            <View style={styles.receiptIcon}>
-              <Ionicons name="receipt-outline" size={20} color="#666" />
-            </View>
-          )}
         </View>
       </TouchableOpacity>
     );
   };
+
+
 
   const renderMonthSection = ({ item }: { item: GroupedPayments }) => {
     const isExpanded = expandedMonths[item.title] ?? true; // Default to expanded
@@ -247,7 +276,7 @@ const OverallPayment: React.FC = () => {
     <View style={styles.container}>
       <View style={styles.balanceCard}>
         <View style={styles.balanceHeader}>
-          <Text style={styles.balanceTitle}>Overall Balance {currentUser ? `(${currentUser})` : ''}</Text>
+          <Text style={styles.balanceTitle}>Overall Balance</Text>
           <TouchableOpacity onPress={toggleBalanceVisibility}>
             <Ionicons
               name={isBalanceVisible ? "eye-outline" : "eye-off-outline"}
@@ -257,10 +286,16 @@ const OverallPayment: React.FC = () => {
           </TouchableOpacity>
         </View>
         <Text style={styles.balanceAmount}>
-          {isBalanceVisible ? `$${totalBalance.toFixed(2)}` : '•••••'}
+          {isBalanceVisible ? `$${Math.abs(totalBalance).toFixed(2)}` : '•••••'}
         </Text>
         <Text style={styles.balanceSubtitle}>
-          Amount to be settled between {CONSTANTS.PAYERS[0]} and {CONSTANTS.PAYERS[1]}
+          {isBalanceVisible
+            ? totalBalance < 0
+              ? `(${CONSTANTS.PAYERS[0]} owes)`
+              : totalBalance > 0
+                ? `(${CONSTANTS.PAYERS[1]} owes)`
+                : '(settled)'
+            : '*****'}
         </Text>
       </View>
 
@@ -270,6 +305,14 @@ const OverallPayment: React.FC = () => {
         keyExtractor={item => item.title}
         contentContainerStyle={styles.listContainer}
       />
+
+      <TouchableOpacity
+        style={styles.resetButton}
+        onPress={handleResetAll}
+      >
+        <Text style={styles.resetButtonText}>Reset All Payments (DEBUG USE)</Text>
+
+      </TouchableOpacity>
     </View>
   );
 };
@@ -278,6 +321,18 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
+  },
+  resetButton: {
+    backgroundColor: '#FF3B30',
+    padding: 12,
+    borderRadius: 8,
+    margin: 16,
+    alignItems: 'center',
+  },
+  resetButtonText: {
+    color: 'white',
+    fontWeight: '600',
+    fontSize: 16,
   },
   balanceCard: {
     margin: 16,

@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { StorageUtils } from '../utils/storage';
 import NetInfo from '@react-native-community/netinfo';
 
@@ -49,5 +50,15 @@ export const uploadToServer = async (localUri: string) => {
   } catch (error) {
       console.error('Upload error:', error);
       throw error;
+  }
+};
+
+export const clearAllPayments = async () => {
+  try {
+    await AsyncStorage.setItem('payments', JSON.stringify([]));
+    return true;
+  } catch (error) {
+    console.error('Error clearing payments:', error);
+    throw error;
   }
 };

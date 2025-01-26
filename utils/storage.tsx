@@ -1,4 +1,3 @@
-import * as FileSystem from 'expo-file-system';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Payment, CONSTANTS } from '../types/payment';
 
@@ -19,35 +18,6 @@ export const StorageUtils = {
     await AsyncStorage.setItem(CONSTANTS.STORAGE_KEYS.PAYMENTS, JSON.stringify(payments));
 
     return newPayment;
-  },
-
-  savePaymentWithImage: async (payment: Omit<Payment, 'id'>, localUri: string) => {
-    const id = Date.now().toString();
-    const newPayment: Payment = {
-      ...payment,
-      id,
-      uri: localUri,    // Local file path
-      serverUri: null, // Will be updated after upload
-      isUploaded: false,
-      uploadStatus: 'uploading',
-      uploadError: null,
-      imageUploadStatus: 'pending',
-    };
-
-    try {
-      const existingPayments = await AsyncStorage.getItem(CONSTANTS.STORAGE_KEYS.PAYMENTS);
-      const payments: Payment[] = existingPayments
-        ? JSON.parse(existingPayments)
-        : [];
-
-      payments.unshift(newPayment);
-      await AsyncStorage.setItem(CONSTANTS.STORAGE_KEYS.PAYMENTS, JSON.stringify(payments));
-
-      return newPayment;
-    } catch (error) {
-      console.error('Error saving payment:', error);
-      throw error;
-    }
   },
 
   async getStoredPayments(): Promise<Payment[]> {
@@ -82,18 +52,6 @@ export const StorageUtils = {
 
   async deletePayment(id: string): Promise<void> {
     const payments = await this.getStoredPayments();
-    const payment = payments.find(p => p.id === id);
-
-    // Delete image file if exists
-    if (payment?.uri) {
-      try {
-        await FileSystem.deleteAsync(payment.uri);
-      } catch (error) {
-        console.error('Error deleting image file:', error);
-      }
-    }
-
-    // Remove from storage
     const updatedPayments = payments.filter(payment => payment.id !== id);
     await AsyncStorage.setItem(CONSTANTS.STORAGE_KEYS.PAYMENTS, JSON.stringify(updatedPayments));
   },
@@ -116,8 +74,7 @@ export const StorageUtils = {
     }
   },
 
-
-  retryUpload: async function (id: string) {  // Changed to regular function
+  retryUpload: async function (id: string) {
     try {
       const payments = await this.getStoredPayments();
       const payment = payments.find(p => p.id === id);
@@ -127,32 +84,22 @@ export const StorageUtils = {
           uploadStatus: 'uploading',
           uploadError: null
         });
-        return payment.uri; // Return the local URI for re-upload
+      } else {
+        throw new Error('Payment not found');
       }
-      throw new Error('Payment not found');
     } catch (error) {
       console.error('Error preparing retry upload:', error);
       throw error;
     }
   },
 
-  // Helper method to clean up orphaned images
-  async cleanupOrphanedImages(): Promise<void> {
+  async clearAllPayments(): Promise<void> {
     try {
-      const payments = await this.getStoredPayments();
-      const receiptsDir = `${FileSystem.documentDirectory}receipts/`;
-      const files = await FileSystem.readDirectoryAsync(receiptsDir);
-
-      for (const file of files) {
-        const filePath = `${receiptsDir}${file}`;
-        const isUsed = payments.some(payment => payment.uri === filePath);
-
-        if (!isUsed) {
-          await FileSystem.deleteAsync(filePath);
-        }
-      }
+      await AsyncStorage.setItem(CONSTANTS.STORAGE_KEYS.PAYMENTS, JSON.stringify([]));
+      console.log('Successfully cleared all payments');
     } catch (error) {
-      console.error('Error cleaning up orphaned images:', error);
+      console.error('Error clearing all payments:', error);
+      throw error;
     }
-  }
+  },
 };

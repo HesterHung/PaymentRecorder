@@ -290,12 +290,11 @@ const InputScreen: React.FC = () => {
     }
   }
   return (
-
-    <View style={styles.pageContainer}> {/* New wrapper View */}
+    <View style={styles.pageContainer}>
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
-          onPress={handleCancel} // Using existing handleCancel function
+          onPress={handleCancel}
         >
           <Ionicons name="chevron-back" size={24} color="#007AFF" />
           <Text style={styles.backButtonText}>Back</Text>
@@ -303,11 +302,11 @@ const InputScreen: React.FC = () => {
         <Text style={styles.headerTitle}>
           {existingPayment ? 'Edit Payment' : 'New Payment'}
         </Text>
-        <View style={styles.headerRightPlaceholder} /> {/* Empty View for centering */}
+        <View style={styles.headerRightPlaceholder} />
       </View>
       <ScrollView style={styles.container}>
         <View style={styles.formContainer}>
-          {/* Date Section */}
+          {/* 1. Date Section */}
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Date and Time</Text>
             <View style={styles.dateTimeContainer}>
@@ -353,19 +352,6 @@ const InputScreen: React.FC = () => {
             )}
           </View>
 
-          {/* Title Section */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Title</Text>
-            <View style={styles.inputWrapper}>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter a description (optional)"
-                value={title}
-                onChangeText={setTitle}
-              />
-            </View>
-          </View>
-
           {/* Who Paid Section */}
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Who paid?</Text>
@@ -396,7 +382,8 @@ const InputScreen: React.FC = () => {
               ))}
             </View>
           </View>
-          {/* Amount Section */}
+
+          {/*Amount Type Section */}
           <View style={styles.inputGroupAmount}>
             <Text style={styles.label}>Amount Type</Text>
             <View style={styles.amountTypeContainer}>
@@ -450,14 +437,27 @@ const InputScreen: React.FC = () => {
                 value={amountType === 'total' ? totalAmount : specificAmount}
                 onChangeText={amountType === 'total' ? setTotalAmount : setSpecificAmount}
                 keyboardType="decimal-pad"
-                placeholderTextColor="#9CA3AF"  // Add this to style the placeholder text
+                placeholderTextColor="#9CA3AF"
               />
             </View>
           </View>
 
 
 
-          {/* Submit and Cancel Buttons */}
+          {/* 4. Description Section */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Description</Text>
+            <View style={styles.inputWrapper}>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter a description (optional)"
+                value={title}
+                onChangeText={setTitle}
+              />
+            </View>
+          </View>
+
+          {/* 5. Save Expense Button */}
           <TouchableOpacity
             style={styles.submitButton}
             onPress={handleSubmit}
@@ -465,6 +465,7 @@ const InputScreen: React.FC = () => {
             <Text style={styles.submitButtonText}>Save Expense</Text>
           </TouchableOpacity>
 
+          {/* 6. Cancel Button */}
           <TouchableOpacity
             style={styles.cancelButton}
             onPress={handleCancel}
@@ -474,7 +475,6 @@ const InputScreen: React.FC = () => {
         </View>
       </ScrollView>
     </View>
-
   );
 };
 
