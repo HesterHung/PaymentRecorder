@@ -9,6 +9,7 @@ import { router, useFocusEffect } from 'expo-router';
 import userStorage from '@/services/userStorage';
 import { BalanceSummaryText, calculatePaymentBalance, formatBalance } from '@/utils/paymentCalculator';
 import { USER_COLORS } from '@/constants/Colors';
+import Toast from 'react-native-toast-message';
 
 const { width } = Dimensions.get('window');
 const peopleNumber = 2;
@@ -26,6 +27,7 @@ const OverallPayment: React.FC = () => {
   const [expandedMonths, setExpandedMonths] = useState<{ [key: string]: boolean }>({});
   const [currentUser, setCurrentUser] = useState<string>('');
   const [users, setUsers] = useState<[string, string]>(CONSTANTS.PAYERS);
+
 
   useEffect(() => {
     const initializeUsers = async () => {
@@ -57,6 +59,14 @@ const OverallPayment: React.FC = () => {
     }, [])
   );
 
+  useFocusEffect(
+    React.useCallback(() => {
+      loadReceipts();
+      return () => { }; // cleanup if needed
+    }, [])
+  );
+
+
   const toggleMonth = (monthTitle: string) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setExpandedMonths(prev => ({
@@ -72,14 +82,43 @@ const OverallPayment: React.FC = () => {
   };
 
   const handlePaymentPress = (payment: Payment) => {
-    console.log('Attempting to navigate to standard-input with payment:', payment);
+    console.log('Payment being passed:', payment);
     try {
+      // Clear any existing params before navigation
       router.push({
         pathname: "/(tabs)/standard-input",
-        params: { existingPayment: JSON.stringify(payment) }
+        params: {
+          existingPayment: JSON.stringify({
+            ...payment,
+            timestamp: Date.now() // Add timestamp to force param refresh
+          })
+        }
       });
     } catch (error) {
       console.error('Navigation error:', error);
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: 'Failed to navigate to edit screen',
+      });
+    }
+  };
+
+  const loadReceipts = async () => {
+    try {
+      const receipts = await StorageUtils.getStoredPayments();
+      const summary = calculatePaymentBalance(receipts);
+
+      const groupedArray = Object.entries(summary.monthlyBalances).map(([title, data]) => ({
+        title,
+        data: data.payments.sort((a, b) => b.date - a.date),
+        totalAmount: data.balance
+      }));
+
+      setTotalBalance(summary.totalBalance);
+      setGroupedPayments(groupedArray);
+    } catch (error) {
+      console.error('Error loading receipts:', error);
     }
   };
 
@@ -113,23 +152,7 @@ const OverallPayment: React.FC = () => {
     );
   };
 
-  const loadReceipts = async () => {
-    try {
-      const receipts = await StorageUtils.getStoredPayments();
-      const summary = calculatePaymentBalance(receipts);
 
-      const groupedArray = Object.entries(summary.monthlyBalances).map(([title, data]) => ({
-        title,
-        data: data.payments.sort((a, b) => b.date - a.date),
-        totalAmount: data.balance
-      }));
-
-      setTotalBalance(summary.totalBalance);
-      setGroupedPayments(groupedArray);
-    } catch (error) {
-      console.error('Error loading receipts:', error);
-    }
-  };
 
 
   const handleResetAll = () => {

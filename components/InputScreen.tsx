@@ -15,6 +15,7 @@ import { PRIMARY_COLOR, USER_COLORS } from '@/constants/Colors';
 const InputScreen: React.FC = () => {
   const params = useLocalSearchParams();
   const [existingPayment, setExistingPayment] = useState<Payment | null>(null);
+  const isEditing = params.isEditing === 'true';
 
   // Initialize state with existingPayment data
   const [title, setTitle] = useState('');
@@ -111,7 +112,7 @@ const InputScreen: React.FC = () => {
   const resetForm = useCallback(() => {
     setTitle('');
     const currentUser = userStorage.getCurrentUser();
-    setWhoPaid(currentUser || ''); // Set to current user or empty string
+    setWhoPaid(currentUser || '');
     setAmountType('total');
     setTotalAmount('');
     setSpecificAmount('');
@@ -119,6 +120,7 @@ const InputScreen: React.FC = () => {
     setReceipt(null);
     setShowDatePicker(false);
     setShowTimePicker(false);
+    setExistingPayment(null); // Important: clear existing payment data
   }, []);
 
   const handleAmountTypeSelect = (type: 'total' | 'specific') => {
@@ -216,7 +218,11 @@ const InputScreen: React.FC = () => {
             style: "destructive",
             onPress: () => {
               resetForm();
-              router.back();
+              if (existingPayment) {
+                router.push("/(tabs)/overall-payment");
+              } else {
+                router.back();
+              }
             }
           }
         ]
@@ -235,13 +241,21 @@ const InputScreen: React.FC = () => {
             style: "destructive",
             onPress: () => {
               resetForm();
-              router.back();
+              if (existingPayment) {
+                router.push("/(tabs)/overall-payment");
+              } else {
+                router.back();
+              }
             }
           }
         ]
       );
     } else {
-      router.back();
+      if (existingPayment) {
+        router.push("/(tabs)/overall-payment");
+      } else {
+        router.back();
+      }
     }
   };
 
@@ -256,16 +270,18 @@ const InputScreen: React.FC = () => {
         setAmountType(payment.amountType as 'total' | 'specific');
         setDate(new Date(payment.date));
 
-        // Set the amount in the correct input field
         if (payment.amountType === 'total') {
           setTotalAmount(payment.amount.toString());
-          setSpecificAmount('');
         } else {
           setSpecificAmount(payment.amount.toString());
-          setTotalAmount('');
         }
       } catch (error) {
         console.error('Error parsing existing payment:', error);
+        Toast.show({
+          type: 'error',
+          text1: 'Error',
+          text2: 'Failed to load payment details',
+        });
       }
     }
   }, [params.existingPayment]);
@@ -293,7 +309,6 @@ const InputScreen: React.FC = () => {
       };
 
       if (existingPayment?.id) {
-        // Update existing payment
         await StorageUtils.updatePayment(existingPayment.id, paymentData);
         Toast.show({
           type: 'success',
@@ -301,7 +316,6 @@ const InputScreen: React.FC = () => {
           text2: 'Payment updated successfully',
         });
       } else {
-        // Create new payment
         await StorageUtils.savePayment(paymentData);
         Toast.show({
           type: 'success',
@@ -310,11 +324,8 @@ const InputScreen: React.FC = () => {
         });
       }
 
-      // Reset form after successful save
-      resetForm();
-
-      // Navigate back to the previous screen
-      router.back();
+      // Navigate back to overall payment page
+      router.push("/(tabs)/overall-payment");
     } catch (error) {
       console.error('Error saving payment:', error);
       Toast.show({
@@ -324,6 +335,8 @@ const InputScreen: React.FC = () => {
       });
     }
   }
+
+
   return (
     <View style={styles.pageContainer}>
       <View style={styles.header}>
@@ -523,12 +536,14 @@ const InputScreen: React.FC = () => {
             </View>
           </View>
 
-          {/* 5. Save Expense Button */}
+          {/* 5. Save/Update Expense Button */}
           <TouchableOpacity
             style={styles.submitButton}
             onPress={handleSubmit}
           >
-            <Text style={styles.submitButtonText}>Save Expense</Text>
+            <Text style={styles.submitButtonText}>
+              {existingPayment ? 'Update Expense' : 'Save Expense'}
+            </Text>
           </TouchableOpacity>
 
           {/* 6. Cancel Button */}
