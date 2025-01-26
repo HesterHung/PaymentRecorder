@@ -66,15 +66,21 @@ const OverallPayment: React.FC = () => {
   };
 
 
+
   const toggleBalanceVisibility = () => {
     setIsBalanceVisible(!isBalanceVisible);
   };
 
   const handlePaymentPress = (payment: Payment) => {
-    router.push({
-      pathname: "./components/InputScreen",
-      params: { existingPayment: JSON.stringify(payment) }
-    });
+    console.log('Attempting to navigate to standard-input with payment:', payment);
+    try {
+      router.push({
+        pathname: "/(tabs)/standard-input",
+        params: { existingPayment: JSON.stringify(payment) }
+      });
+    } catch (error) {
+      console.error('Navigation error:', error);
+    }
   };
 
   const handleLongPress = (payment: Payment) => {
