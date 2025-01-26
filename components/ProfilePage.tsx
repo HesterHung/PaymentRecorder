@@ -1,20 +1,25 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, Alert, ScrollView, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import userStorage, { USER_COLORS } from '@/services/userStorage';
+import userStorage from '@/services/userStorage';
+
+const USER_COLORS = ['#2563eb', '#dc2626']; // blue for index 0, red for index 1
 
 const ProfilePage = () => {
     const [users, setUsers] = useState<[string, string]>(['User 1', 'User 2']);
     const [editingUser, setEditingUser] = useState<string | null>(null);
     const [editName, setEditName] = useState('');
     const [currentUser, setCurrentUser] = useState('');
+    const [currentUserIndex, setCurrentUserIndex] = useState(0);
 
     useEffect(() => {
         const loadData = async () => {
             try {
                 const loadedUsers = await userStorage.getUsers();
                 setUsers(loadedUsers);
-                setCurrentUser(userStorage.getCurrentUser());
+                const current = userStorage.getCurrentUser();
+                setCurrentUser(current);
+                setCurrentUserIndex(loadedUsers.indexOf(current));
             } catch (error) {
                 console.error('Error loading users:', error);
             }
@@ -31,6 +36,10 @@ const ProfilePage = () => {
                 const newUsers: [string, string] = [...users] as [string, string];
                 newUsers[index] = newName.trim();
                 await userStorage.setUsers(newUsers);
+                if (currentUser === users[index]) {
+                    setCurrentUser(newName.trim());
+                    await userStorage.setCurrentUser(newName.trim());
+                }
                 setEditingUser(null);
                 setEditName('');
             } catch (error) {
@@ -39,23 +48,19 @@ const ProfilePage = () => {
         }
     };
 
-    const handleSetCurrentUser = async (user: string) => {
+    const handleSetCurrentUser = async (user: string, index: number) => {
         try {
             await userStorage.setCurrentUser(user);
             setCurrentUser(user);
+            setCurrentUserIndex(index);
             Alert.alert('Success', `Current user set to ${user}`);
         } catch (error) {
             Alert.alert('Error', 'Failed to set current user');
         }
     };
 
-    const getUserStyle = (user: string) => {
-        const isCurrentUser = currentUser === user;
-        const userColor = userStorage.getUserColor(user);
-        return {
-            color: isCurrentUser ? userColor : '#374151',
-            fontWeight: isCurrentUser ? '600' : '400',
-        };
+    const getUserColor = (index: number, isCurrentUser: boolean) => {
+        return isCurrentUser ? USER_COLORS[index] : '#9CA3AF';
     };
 
     return (
@@ -68,11 +73,11 @@ const ProfilePage = () => {
                         <Ionicons
                             name="person-circle"
                             size={40}
-                            color={userStorage.getUserColor(currentUser)} // Changed from getCurrentUserColor
+                            color={USER_COLORS[currentUserIndex]}
                         />
                         <Text style={[
                             styles.currentUserText,
-                            { color: userStorage.getUserColor(currentUser) } // Changed from getCurrentUserColor
+                            { color: USER_COLORS[currentUserIndex] }
                         ]}>
                             {currentUser}
                         </Text>
@@ -113,21 +118,22 @@ const ProfilePage = () => {
                                         <Ionicons
                                             name="person"
                                             size={24}
-                                            color={userStorage.getUserColor(user)}
+                                            color={getUserColor(index, currentUser === user)}
                                         />
                                         <Text style={[
                                             styles.userName,
+                                            { color: getUserColor(index, currentUser === user) }
                                         ]}>
                                             {user}
                                         </Text>
                                     </View>
                                     <View style={styles.userActions}>
                                         <TouchableOpacity
-                                            onPress={() => handleSetCurrentUser(user)}
+                                            onPress={() => handleSetCurrentUser(user, index)}
                                             style={[
                                                 styles.setCurrentButton,
                                                 currentUser === user && {
-                                                    backgroundColor: userStorage.getUserColor(user)
+                                                    backgroundColor: USER_COLORS[index]
                                                 }
                                             ]}
                                         >
@@ -148,7 +154,7 @@ const ProfilePage = () => {
                                             <Ionicons
                                                 name="pencil"
                                                 size={20}
-                                                color={userStorage.getUserColor(user)}
+                                                color={getUserColor(index, currentUser === user)}
                                             />
                                         </TouchableOpacity>
                                     </View>
@@ -205,7 +211,6 @@ const styles = StyleSheet.create({
     currentUserText: {
         fontSize: 18,
         fontWeight: '600',
-        color: '#1f2937',
     },
     userCard: {
         backgroundColor: 'white',
@@ -230,7 +235,6 @@ const styles = StyleSheet.create({
     },
     userName: {
         fontSize: 16,
-        color: '#374151',
     },
     userActions: {
         flexDirection: 'row',
@@ -242,9 +246,6 @@ const styles = StyleSheet.create({
         paddingVertical: 6,
         borderRadius: 16,
         backgroundColor: '#f3f4f6',
-    },
-    currentUserButton: {
-        backgroundColor: '#007AFF',
     },
     setCurrentButtonText: {
         fontSize: 14,
