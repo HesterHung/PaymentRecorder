@@ -391,7 +391,10 @@ const InputScreen: React.FC = () => {
                 >
                   <View style={[
                     styles.payerCircle,
-                    whoPaid === payer ? styles.activePayerCircle : styles.inactivePayerCircle
+                    whoPaid === payer ? {
+                      backgroundColor: USER_COLORS[users.indexOf(payer)],
+                      borderColor: USER_COLORS[users.indexOf(payer)]
+                    } : styles.inactivePayerCircle
                   ]}>
                     <Ionicons
                       name={whoPaid === payer ? "person" : "person-outline"}
@@ -401,7 +404,10 @@ const InputScreen: React.FC = () => {
                   </View>
                   <Text style={[
                     styles.payerText,
-                    whoPaid === payer ? styles.activePayerText : styles.inactivePayerText
+                    whoPaid === payer ? {
+                      color: USER_COLORS[users.indexOf(payer)],
+                      fontWeight: '600'
+                    } : styles.inactivePayerText
                   ]}>
                     {payer}
                   </Text>
@@ -582,6 +588,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
+
   payerCircle: {
     width: 64,
     height: 64,

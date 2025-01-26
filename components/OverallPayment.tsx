@@ -332,7 +332,7 @@ const styles = StyleSheet.create({
   balanceAmount: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: '#007AFF',
+    color: 'black',
     marginBottom: 8,
   },
   balanceSubtitle: {
