@@ -373,27 +373,31 @@ const InputScreen: React.FC = () => {
               {users.map((payer) => (
                 <TouchableOpacity
                   key={payer}
-                  style={[
-                    styles.payerButton,
-                    whoPaid === payer && styles.selectedPayer
-                  ]}
+                  style={styles.payerButton}
                   onPress={() => setWhoPaid(payer)}
                 >
-                  <Ionicons
-                    name={whoPaid === payer ? "person" : "person-outline"}
-                    size={24}
-                    color={whoPaid === payer ? 'white' : '#007AFF'}
-                  />
-                  <Text style={[styles.payerText, whoPaid === payer && styles.selectedPayerText]}>
+                  <View style={[
+                    styles.payerCircle,
+                    whoPaid === payer ? styles.activePayerCircle : styles.inactivePayerCircle
+                  ]}>
+                    <Ionicons
+                      name={whoPaid === payer ? "person" : "person-outline"}
+                      size={28}
+                      color={whoPaid === payer ? 'white' : '#9CA3AF'}
+                    />
+                  </View>
+                  <Text style={[
+                    styles.payerText,
+                    whoPaid === payer ? styles.activePayerText : styles.inactivePayerText
+                  ]}>
                     {payer}
                   </Text>
                 </TouchableOpacity>
               ))}
             </View>
           </View>
-
           {/* Amount Section */}
-          <View style={styles.inputGroup}>
+          <View style={styles.inputGroupAmount}>
             <Text style={styles.label}>Amount Type</Text>
             <View style={styles.amountTypeContainer}>
               <TouchableOpacity
@@ -470,7 +474,10 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   inputGroup: {
-    marginBottom: 23,
+    marginBottom: 16,
+  },
+  inputGroupAmount: {
+    marginBottom: 20,
   },
   label: {
     fontSize: 16,
@@ -516,31 +523,48 @@ const styles = StyleSheet.create({
   },
   payerButtons: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 12,
+    justifyContent: 'space-around',
+    paddingHorizontal: 20,
+    marginTop: 8,
   },
   payerButton: {
-    flex: 1,
-    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    padding: 15,
-    backgroundColor: 'white',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#007AFF',
     gap: 8,
   },
-  payerText: {
-    fontSize: 16,
-    color: '#007AFF',
+  payerCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
   },
-  selectedPayer: {
+  activePayerCircle: {
     backgroundColor: '#007AFF',
     borderColor: '#007AFF',
   },
-  selectedPayerText: {
-    color: 'white',
+  inactivePayerCircle: {
+    backgroundColor: 'white',
+    borderColor: '#9CA3AF',
+  },
+  payerText: {
+    fontSize: 16,
+    marginTop: 4,
+  },
+  activePayerText: {
+    color: '#007AFF',
+    fontWeight: '600',
+  },
+  inactivePayerText: {
+    color: '#9CA3AF',
   },
   amountTypeContainer: {
     flexDirection: 'row',
@@ -594,7 +618,7 @@ const styles = StyleSheet.create({
   screenTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    marginBottom: 20,
+    marginBottom: 16,
     color: '#333',
   },
   buttonContainer: {
@@ -641,29 +665,6 @@ const styles = StyleSheet.create({
   },
   dateTimeButton: {
     flex: 1,
-  },
-  imageHeaderContainer: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    marginBottom: 8,
-  },
-  clearImageButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 8,
-    borderRadius: 8,
-    backgroundColor: '#FFE5E5',
-  },
-  clearImageText: {
-    color: '#FF3B30',
-    marginLeft: 4,
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  imageUri: {
-    fontSize: 12,
-    color: '#666',
-    marginTop: 4,
   },
   pageContainer: {
     flex: 1,
