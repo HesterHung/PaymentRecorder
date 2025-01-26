@@ -7,6 +7,7 @@ import { Payment, GroupedPayments, CONSTANTS } from '../types/payment';
 import { Alert } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import userStorage from '@/services/userStorage';
+import { BalanceDisplay, BalanceSummaryText, calculatePaymentBalance, formatBalance } from '@/utils/paymentCalculator';
 
 const { width } = Dimensions.get('window');
 const peopleNumber = 2;
@@ -99,39 +100,15 @@ const OverallPayment: React.FC = () => {
   const loadReceipts = async () => {
     try {
       const receipts = await StorageUtils.getStoredPayments();
+      const summary = calculatePaymentBalance(receipts);
 
-      // Group receipts by month
-      const grouped = receipts.reduce((acc: { [key: string]: Payment[] }, payment) => {
-        const date = new Date(payment.date);
-        const monthYear = date.toLocaleString('default', { month: 'long', year: 'numeric' });
+      const groupedArray = Object.entries(summary.monthlyBalances).map(([title, data]) => ({
+        title,
+        data: data.payments.sort((a, b) => b.date - a.date),
+        totalAmount: data.balance
+      }));
 
-        if (!acc[monthYear]) {
-          acc[monthYear] = [];
-        }
-        acc[monthYear].push(payment);
-        return acc;
-      }, {});
-
-      // Calculate totals and convert to array format
-      const groupedArray = Object.entries(grouped).map(([title, data]) => {
-        const totalAmount = data.reduce((sum, payment) => {
-          const actualAmount = payment.amountType === 'total'
-            ? payment.amount / peopleNumber
-            : payment.amount;
-          return sum + actualAmount;
-        }, 0);
-
-        return {
-          title,
-          data: data.sort((a, b) => b.date - a.date),
-          totalAmount
-        };
-      });
-
-      // Calculate overall balance
-      const total = groupedArray.reduce((sum, group) => sum + group.totalAmount, 0);
-      setTotalBalance(total);
-
+      setTotalBalance(summary.totalBalance);
       setGroupedPayments(groupedArray);
     } catch (error) {
       console.error('Error loading receipts:', error);
@@ -248,14 +225,10 @@ const OverallPayment: React.FC = () => {
           </View>
           <View style={styles.monthTotalContainer}>
             <Text style={styles.monthTotal}>
-              Total: ${Math.abs(item.totalAmount).toFixed(2)}
+              Total: {formatBalance(item.totalAmount)}
             </Text>
             <Text style={styles.monthOwes}>
-              {item.totalAmount < 0
-                ? `(${CONSTANTS.PAYERS[0]} owes)`
-                : item.totalAmount > 0
-                  ? `(${CONSTANTS.PAYERS[1]} owes)`
-                  : '(settled)'}
+              <BalanceSummaryText balance={item.totalAmount} />
             </Text>
           </View>
         </TouchableOpacity>
@@ -286,16 +259,10 @@ const OverallPayment: React.FC = () => {
           </TouchableOpacity>
         </View>
         <Text style={styles.balanceAmount}>
-          {isBalanceVisible ? `$${Math.abs(totalBalance).toFixed(2)}` : '•••••'}
+          {isBalanceVisible ? formatBalance(totalBalance) : '•••••'}
         </Text>
         <Text style={styles.balanceSubtitle}>
-          {isBalanceVisible
-            ? totalBalance < 0
-              ? `(${CONSTANTS.PAYERS[0]} owes)`
-              : totalBalance > 0
-                ? `(${CONSTANTS.PAYERS[1]} owes)`
-                : '(settled)'
-            : '*****'}
+          {isBalanceVisible ? <BalanceSummaryText balance={totalBalance} /> : '*****'}
         </Text>
       </View>
 
