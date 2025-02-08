@@ -1,5 +1,5 @@
 //components\OverallPayment.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, Dimensions, TouchableOpacity, Platform, UIManager, LayoutAnimation, ActivityIndicator } from 'react-native';
 import { StorageUtils } from '../utils/storage';
 import { Ionicons } from '@expo/vector-icons';
@@ -29,8 +29,16 @@ const OverallPayment: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<string>('');
   const [users, setUsers] = useState<[string, string]>(CONSTANTS.PAYERS);
   const [isLoading, setIsLoading] = useState(false);
+  const [localPayments, setLocalPayments] = useState<Set<string>>(new Set());
 
 
+  useEffect(() => {
+    const fetchLocalPayments = async () => {
+      const stored = await StorageUtils.getStoredPayments();
+      setLocalPayments(new Set(stored.map(p => p.id)));
+    };
+    fetchLocalPayments();
+  }, []);
 
   useEffect(() => {
     const initializeUsers = async () => {
@@ -105,25 +113,32 @@ const OverallPayment: React.FC = () => {
 
   const loadReceipts = async () => {
     try {
-      const receipts = await APIService.getPayments();
-      console.log('Received receipts:', receipts); // Debug log
+      // Get both online and local payments
+      const [onlineReceipts, localReceipts] = await Promise.all([
+        APIService.getPayments(),
+        StorageUtils.getStoredPayments()
+      ]);
 
-      if (!Array.isArray(receipts)) {
-        console.error('Expected array of receipts, got:', receipts);
-        setGroupedPayments([]);
-        setTotalBalance(0);
+      console.log('Online receipts:', onlineReceipts);
+      console.log('Local receipts:', localReceipts);
+
+      if (!Array.isArray(onlineReceipts)) {
+        console.error('Expected array of online receipts, got:', onlineReceipts);
         return;
       }
 
+      // Combine receipts, putting local ones first
+      const allReceipts = [...localReceipts, ...onlineReceipts];
+
       // Filter out any invalid payments
-      const validReceipts = receipts.filter(receipt =>
+      const validReceipts = allReceipts.filter(receipt =>
         receipt &&
         typeof receipt.amount === 'number' &&
         typeof receipt.paymentDatetime === 'number'
       );
 
       const summary = calculatePaymentBalance(validReceipts);
-      console.log('Payment summary:', summary); // Debug log
+      console.log('Payment summary:', summary);
 
       const groupedArray = Object.entries(summary.monthlyBalances)
         .map(([title, data]) => ({
@@ -157,10 +172,15 @@ const OverallPayment: React.FC = () => {
   // In OverallPayment.tsx
   // Update handleLongPress:
 
-  const handleLongPress = (payment: Payment) => {
+  const handleLongPress = async (payment: Payment) => {
+    const isLocal = (await StorageUtils.getStoredPayments())
+      .some(p => p.id === payment.id);
+
     Alert.alert(
       "Delete Payment",
-      "Are you sure you want to delete this payment?",
+      isLocal
+        ? "This payment is saved locally. Delete it permanently?"
+        : "Are you sure you want to delete this payment?",
       [
         {
           text: "Cancel",
@@ -171,7 +191,11 @@ const OverallPayment: React.FC = () => {
           style: "destructive",
           onPress: async () => {
             try {
-              await APIService.deletePayment(payment.id);
+              if (isLocal) {
+                await StorageUtils.removePendingUpload(payment.id);
+              } else {
+                await APIService.deletePayment(payment.id);
+              }
               Toast.show({
                 type: 'success',
                 text1: 'Success',
@@ -191,9 +215,6 @@ const OverallPayment: React.FC = () => {
       ]
     );
   };
-
-
-
 
   const handleResetAll = () => {
     Alert.alert(
@@ -225,17 +246,80 @@ const OverallPayment: React.FC = () => {
     );
   };
 
+  const handlePaymentUpload = async (payment: Payment) => {
+    Alert.alert(
+      "Upload Payment",
+      "Do you want to upload this locally saved payment to the server?",
+      [
+        {
+          text: "Cancel",
+          style: "cancel"
+        },
+        {
+          text: "Upload",
+          onPress: async () => {
+            try {
+              // Show loading toast
+              Toast.show({
+                type: 'info',
+                text1: 'Uploading...',
+                text2: 'Please wait'
+              });
 
-  const renderReceiptItem = ({ item }: { item: Payment }) => {
+              await APIService.savePayment({
+                title: payment.title,
+                whoPaid: payment.whoPaid,
+                amount: payment.amount,
+                amountType: payment.amountType as 'total' | 'specific',
+                paymentDatetime: payment.paymentDatetime
+              });
+
+              // Remove from local storage
+              await StorageUtils.removePendingUpload(payment.id);
+              setLocalPayments(prev => {
+                const next = new Set(prev);
+                next.delete(payment.id);
+                return next;
+              });
+
+              Toast.show({
+                type: 'success',
+                text1: 'Success',
+                text2: 'Payment uploaded successfully'
+              });
+              loadReceipts();
+            } catch (error) {
+              console.error('Error uploading payment:', error);
+              Toast.show({
+                type: 'error',
+                text1: 'Error',
+                text2: 'Failed to upload payment'
+              });
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const renderReceiptItem = useCallback(({ item }: { item: Payment }) => {
+    const isLocal = localPayments.has(item.id);
+
+    const handlePress = () => {
+      if (isLocal) {
+        handlePaymentUpload(item);
+      } else {
+        handlePaymentPress(item);
+      }
+    };
+
     const date = new Date(item.paymentDatetime);
     const formattedDate = date.toLocaleDateString();
     const formattedTime = date.toLocaleTimeString([], {
       hour: '2-digit',
       minute: '2-digit',
-      second: '2-digit'  // Added seconds
+      second: '2-digit'
     });
-
-    const milliseconds = date.getMilliseconds().toString().padStart(3, '0');
 
     const displayAmount = item.amountType === 'total'
       ? item.amount / 2
@@ -244,7 +328,7 @@ const OverallPayment: React.FC = () => {
     return (
       <TouchableOpacity
         style={styles.paymentItem}
-        onPress={() => handlePaymentPress(item)}
+        onPress={handlePress}
         onLongPress={() => handleLongPress(item)}
         delayLongPress={500}
       >
@@ -255,15 +339,22 @@ const OverallPayment: React.FC = () => {
               {formattedTime}
             </Text>
           </View>
-          <View style={[
-            styles.amountContainer,
-            {
-              backgroundColor: item.whoPaid === users[0] ? USER_COLORS[0] : USER_COLORS[1]
-            }
-          ]}>
-            <Text style={styles.amountText}>
-              ${displayAmount.toFixed(2)}
-            </Text>
+          <View style={styles.amountSection}>
+            {isLocal && (
+              <View style={styles.warningIcon}>
+                <Ionicons name="warning" size={16} color="#FFA500" />
+              </View>
+            )}
+            <View style={[
+              styles.amountContainer,
+              {
+                backgroundColor: item.whoPaid === users[0] ? USER_COLORS[0] : USER_COLORS[1]
+              }
+            ]}>
+              <Text style={styles.amountText}>
+                ${displayAmount.toFixed(2)}
+              </Text>
+            </View>
           </View>
         </View>
 
@@ -289,7 +380,10 @@ const OverallPayment: React.FC = () => {
         </View>
       </TouchableOpacity>
     );
-  };
+  }, [localPayments, users, handlePaymentPress, handleLongPress]);
+
+
+
 
 
   const renderMonthSection = ({ item }: { item: GroupedPayments }) => {
@@ -362,10 +456,11 @@ const OverallPayment: React.FC = () => {
             data={groupedPayments}
             renderItem={renderMonthSection}
             keyExtractor={item => item.title}
-            contentContainerStyle={styles.listContainer} /><TouchableOpacity
-              style={styles.resetButton}
-              onPress={handleResetAll}
-            >
+            contentContainerStyle={styles.listContainer} />
+          <TouchableOpacity
+            style={styles.resetButton}
+            onPress={handleResetAll}
+          >
             <Text style={styles.resetButtonText}>Reset All Payments (DEBUG USE)</Text>
 
           </TouchableOpacity>
@@ -531,6 +626,17 @@ const styles = StyleSheet.create({
     color: '#666',
   },
   centerContent: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  amountSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  warningIcon: {
+    width: 24,
+    height: 24,
     justifyContent: 'center',
     alignItems: 'center',
   },
