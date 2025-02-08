@@ -354,6 +354,8 @@ const InputScreen: React.FC = () => {
       </View>
       <ScrollView style={styles.container}>
         <View style={styles.formContainer}>
+
+
           {/* 1. Date Section */}
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Date and Time</Text>
@@ -398,6 +400,21 @@ const InputScreen: React.FC = () => {
                 }}
               />
             )}
+          </View>
+
+          {/* 4. Description Section */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Title</Text>
+            <View style={styles.inputWrapper}>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter a Title"
+                placeholderTextColor="#9CA3AF"
+
+                value={title}
+                onChangeText={setTitle}
+              />
+            </View>
           </View>
 
           {/* Who Paid Section */}
@@ -519,21 +536,8 @@ const InputScreen: React.FC = () => {
                 />
               </View>
             </View>
-          </View>
 
 
-
-          {/* 4. Description Section */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Description</Text>
-            <View style={styles.inputWrapper}>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter a description (optional)"
-                value={title}
-                onChangeText={setTitle}
-              />
-            </View>
           </View>
 
           {/* 5. Save/Update Expense Button */}
@@ -650,7 +654,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F3F4F6',
     borderRadius: 16,
     padding: 4,
-    marginBottom: 16,
+    marginBottom: 18,
     height: 80,
   },
   amountTypeSlider: {
