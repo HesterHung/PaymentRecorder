@@ -1,116 +1,119 @@
+// utils/storage.ts
+
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Payment, CONSTANTS } from '../types/payment';
+import { Payment } from '../types/payment';
 
-export const StorageUtils = {
-  async savePayment(payment: Omit<Payment, 'id' | 'isUploaded' | 'uploadStatus'>): Promise<Payment> {
-    const timestamp = Date.now();
-    const id = `payment_${timestamp}`;
+const STORAGE_KEYS = {
+  PAYMENTS: 'payments',
+  PENDING_UPLOADS: 'pending_uploads',
+};
 
-    const newPayment: Payment = {
-      ...payment,
-      id,
-      paymentDatetime: Number(payment.paymentDatetime) // Ensure it's a number
-    };
+export class StorageUtils {
 
-    const payments = await this.getStoredPayments();
-    payments.push(newPayment);
-    await AsyncStorage.setItem(CONSTANTS.STORAGE_KEYS.PAYMENTS, JSON.stringify(payments));
-
-    return newPayment;
-  },
-
-  async getStoredPayments(): Promise<Payment[]> {
+  static async savePayment(payment: Omit<Payment, 'id'>): Promise<void> {
     try {
-      const payments = await AsyncStorage.getItem(CONSTANTS.STORAGE_KEYS.PAYMENTS);
-      if (!payments) return [];
-
-      const parsedPayments = JSON.parse(payments);
-      // Ensure paymentDatetime is always a number
-      return parsedPayments.map((payment: Payment) => ({
+      const payments = await this.getStoredPayments();
+      const newPayment: Payment = {
         ...payment,
-        paymentDatetime: Number(payment.paymentDatetime)
-      }));
+        id: generateUniqueId(), // Implement this function
+      };
+      payments.push(newPayment);
+      await AsyncStorage.setItem(STORAGE_KEYS.PAYMENTS, JSON.stringify(payments));
     } catch (error) {
-      console.error('Error getting stored payments:', error);
-      return [];
+      console.error('Error storing payment:', error);
+      throw error;
     }
-  },
+  }
 
-  async markAsUploaded(id: string): Promise<void> {
-    const payments = await this.getStoredPayments();
-    const updatedPayments = payments.map(payment =>
-      payment.id === id
-        ? { ...payment, isUploaded: true, uploadStatus: 'uploaded' }
-        : payment
-    );
-    await AsyncStorage.setItem(CONSTANTS.STORAGE_KEYS.PAYMENTS, JSON.stringify(updatedPayments));
-  },
-
-  async markUploadFailed(id: string, error?: string): Promise<void> {
-    const payments = await this.getStoredPayments();
-    const updatedPayments = payments.map(payment =>
-      payment.id === id
-        ? {
-          ...payment,
-          isUploaded: false,
-          uploadStatus: 'error',
-          uploadError: error || 'Upload failed'
-        }
-        : payment
-    );
-    await AsyncStorage.setItem(CONSTANTS.STORAGE_KEYS.PAYMENTS, JSON.stringify(updatedPayments));
-  },
-
-  async deletePayment(id: string): Promise<void> {
-    const payments = await this.getStoredPayments();
-    const updatedPayments = payments.filter(payment => payment.id !== id);
-    await AsyncStorage.setItem(CONSTANTS.STORAGE_KEYS.PAYMENTS, JSON.stringify(updatedPayments));
-  },
-
-  updatePayment: async (id: string, updates: Partial<Payment>) => {
+  static async updatePayment(id: string, payment: Omit<Payment, 'id'>): Promise<void> {
     try {
-      const payments = await StorageUtils.getStoredPayments(); // Use the fixed getStoredPayments
-      const updatedPayments = payments.map(payment =>
-        payment.id === id
-          ? {
-            ...payment,
-            ...updates,
-            paymentDatetime: Number(updates.paymentDatetime ?? payment.paymentDatetime)
-          }
-          : payment
-      );
-      await AsyncStorage.setItem(CONSTANTS.STORAGE_KEYS.PAYMENTS, JSON.stringify(updatedPayments));
+      const payments = await this.getStoredPayments();
+      const index = payments.findIndex(p => p.id === id);
+      if (index !== -1) {
+        payments[index] = {
+          ...payment,
+          id,
+        };
+        await AsyncStorage.setItem(STORAGE_KEYS.PAYMENTS, JSON.stringify(payments));
+      }
     } catch (error) {
       console.error('Error updating payment:', error);
       throw error;
     }
-  },
+  }
 
-  retryUpload: async function (id: string) {
+  static async storePayment(payment: Payment): Promise<void> {
     try {
-      const payments = await this.getStoredPayments();
-      const payment = payments.find(p => p.id === id);
-
-      if (payment) {
-        await this.updatePayment(id, {
-        });
-      } else {
-        throw new Error('Payment not found');
-      }
+      const existingPayments = await this.getStoredPayments();
+      const updatedPayments = [...existingPayments, payment];
+      await AsyncStorage.setItem(STORAGE_KEYS.PAYMENTS, JSON.stringify(updatedPayments));
     } catch (error) {
-      console.error('Error preparing retry upload:', error);
+      console.error('Error storing payment:', error);
       throw error;
     }
-  },
+  }
 
-  async clearAllPayments(): Promise<void> {
+  static async getStoredPayments(): Promise<Payment[]> {
     try {
-      await AsyncStorage.setItem(CONSTANTS.STORAGE_KEYS.PAYMENTS, JSON.stringify([]));
-      console.log('Successfully cleared all payments');
+      const paymentsJson = await AsyncStorage.getItem(STORAGE_KEYS.PAYMENTS);
+      return paymentsJson ? JSON.parse(paymentsJson) : [];
     } catch (error) {
-      console.error('Error clearing all payments:', error);
+      console.error('Error getting stored payments:', error);
+      return [];
+    }
+  }
+
+  static async addPendingUpload(payment: Payment): Promise<void> {
+    try {
+      const pendingUploads = await this.getPendingUploads();
+      pendingUploads.push(payment);
+      await AsyncStorage.setItem(
+        STORAGE_KEYS.PENDING_UPLOADS,
+        JSON.stringify(pendingUploads)
+      );
+    } catch (error) {
+      console.error('Error adding pending upload:', error);
       throw error;
     }
-  },
+  }
 
-};
+  static async getPendingUploads(): Promise<Payment[]> {
+    try {
+      const pendingUploadsJson = await AsyncStorage.getItem(STORAGE_KEYS.PENDING_UPLOADS);
+      return pendingUploadsJson ? JSON.parse(pendingUploadsJson) : [];
+    } catch (error) {
+      console.error('Error getting pending uploads:', error);
+      return [];
+    }
+  }
+
+  static async removePendingUpload(paymentId: string): Promise<void> {
+    try {
+      const pendingUploads = await this.getPendingUploads();
+      const filteredUploads = pendingUploads.filter(p => p.id !== paymentId);
+      await AsyncStorage.setItem(
+        STORAGE_KEYS.PENDING_UPLOADS,
+        JSON.stringify(filteredUploads)
+      );
+    } catch (error) {
+      console.error('Error removing pending upload:', error);
+      throw error;
+    }
+  }
+}
+
+function generateUniqueId(): string {
+  // Get current timestamp
+  const timestamp = Date.now();
+  
+  // Generate a random number between 0 and 999999
+  const random = Math.floor(Math.random() * 1000000);
+  
+  // Convert to base 36 (uses letters and numbers) and remove the '0.' at the start
+  const randomStr = random.toString(36);
+  
+  // Combine timestamp and random string
+  const uniqueId = `${timestamp}-${randomStr}`;
+  
+  return uniqueId;
+}

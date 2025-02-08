@@ -10,7 +10,7 @@ import userStorage from '@/services/userStorage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PRIMARY_COLOR, USER_COLORS } from '@/constants/Colors';
 import AmountInput from './AmountInput';
-
+import APIService from '@/services/api'
 
 //components\InputScreen.tsx
 const InputScreen: React.FC = () => {
@@ -298,7 +298,7 @@ const InputScreen: React.FC = () => {
         return;
       }
 
-      const paymentData: Omit<Payment, 'id' | 'isUploaded'> = {
+      const paymentData = {
         title: title || 'Untitled',
         whoPaid,
         amount: numericAmount,
@@ -306,33 +306,57 @@ const InputScreen: React.FC = () => {
         paymentDatetime: date.getTime(),
       };
 
-      if (existingPayment?.id) {
-        await StorageUtils.updatePayment(existingPayment.id, paymentData);
+      try {
+        // Attempt to save to backend
+        await APIService.savePayment(paymentData);
+
         Toast.show({
           type: 'success',
           text1: 'Success',
-          text2: 'Payment updated successfully',
+          text2: 'Payment uploaded successfully',
+          position: 'bottom',
         });
-      } else {
-        await StorageUtils.savePayment(paymentData);
+
+      } catch (error: unknown) {
+        // Log the error with proper type checking
+        if (error instanceof Error) {
+          console.error('Error saving to backend:', error.message);
+        } else {
+          console.error('Unknown error saving to backend');
+        }
+
+        // If backend save fails, save locally
+        if (existingPayment?.id) {
+          await StorageUtils.updatePayment(existingPayment.id, paymentData);
+        } else {
+          await StorageUtils.savePayment(paymentData);
+        }
+
         Toast.show({
-          type: 'success',
-          text1: 'Success',
-          text2: 'Payment saved successfully',
+          type: 'error',
+          text1: 'Saved Locally',
+          text2: 'Could not connect to server. Payment saved locally.',
+          position: 'bottom',
         });
       }
 
-      // Reset all form fields after successful save
+      // Reset form and navigate regardless of save location
       resetForm();
-
-      // Navigate back to overall payment page
       router.push("/(tabs)/overall-payment");
-    } catch (error) {
-      console.error('Error saving payment:', error);
+
+    } catch (error: unknown) {
+      // Log the error with proper type checking
+      if (error instanceof Error) {
+        console.error('Error handling payment:', error.message);
+      } else {
+        console.error('Unknown error handling payment');
+      }
+
       Toast.show({
         type: 'error',
         text1: 'Error',
         text2: 'Failed to save payment. Please try again.',
+        position: 'bottom',
       });
     }
   }

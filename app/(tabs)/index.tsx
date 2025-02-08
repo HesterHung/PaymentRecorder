@@ -4,7 +4,6 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect } from 'react';
 import { AppState, Dimensions } from 'react-native';
-import { UploadService } from '../../services/uploadService';
 import { useCameraPermissions } from 'expo-camera';
 import { PRIMARY_COLOR } from '@/constants/Colors';
 
@@ -12,18 +11,6 @@ const { width } = Dimensions.get('window');
 
 export default function Page() {
     const [permission, requestPermission] = useCameraPermissions();
-
-    useEffect(() => {
-        const subscription = AppState.addEventListener('change', nextAppState => {
-            if (nextAppState === 'active') {
-                UploadService.uploadPendingPayments();
-            }
-        });
-
-        return () => {
-            subscription.remove();
-        };
-    }, []);
 
     return (
         <View style={{ flex: 1, backgroundColor: '#f5f5f5' }}>

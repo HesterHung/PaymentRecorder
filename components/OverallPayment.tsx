@@ -139,7 +139,7 @@ const OverallPayment: React.FC = () => {
           style: "destructive",
           onPress: async () => {
             try {
-              await StorageUtils.deletePayment(payment.id);
+              //await StorageUtils.deletePayment(payment.id);
               // Reload the payments list
               loadReceipts();
             } catch (error) {
@@ -172,7 +172,7 @@ const OverallPayment: React.FC = () => {
           style: "destructive",
           onPress: async () => {
             try {
-              await StorageUtils.clearAllPayments();
+              //await StorageUtils.clearAllPayments();
               Alert.alert("Success", "All payment records have been deleted.");
               loadReceipts();
             } catch (error) {
