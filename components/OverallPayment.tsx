@@ -256,7 +256,7 @@ const OverallPayment: React.FC = () => {
 
 
   const renderMonthSection = ({ item }: { item: GroupedPayments }) => {
-    const isExpanded = expandedMonths[item.title] ?? true; // Default to expanded
+    const isExpanded = expandedMonths[item.title] ?? true;
 
     return (
       <View style={styles.monthSection}>
@@ -274,10 +274,12 @@ const OverallPayment: React.FC = () => {
           </View>
           <View style={styles.monthTotalContainer}>
             <Text style={styles.monthTotal}>
-              Total: {formatBalance(item.totalAmount)}
+              Total: {isBalanceVisible ? formatBalance(item.totalAmount) : '•••••'}
             </Text>
             <Text style={styles.monthOwes}>
-              <BalanceSummaryText balance={item.totalAmount} />
+              {isBalanceVisible ? (
+                <BalanceSummaryText balance={item.totalAmount} />
+              ) : '***'}
             </Text>
           </View>
         </TouchableOpacity>
@@ -293,6 +295,7 @@ const OverallPayment: React.FC = () => {
       </View>
     );
   };
+
 
   return (
     <View style={styles.container}>
@@ -311,7 +314,7 @@ const OverallPayment: React.FC = () => {
           {isBalanceVisible ? formatBalance(totalBalance) : '•••••'}
         </Text>
         <Text style={styles.balanceSubtitle}>
-          {isBalanceVisible ? <BalanceSummaryText balance={totalBalance} /> : '*****'}
+          {isBalanceVisible ? <BalanceSummaryText balance={totalBalance} /> : '***'}
         </Text>
       </View>
 
