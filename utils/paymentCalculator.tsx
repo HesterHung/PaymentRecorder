@@ -57,7 +57,8 @@ export function calculatePaymentBalance(payments: Payment[]): PaymentSummary {
     let totalBalance = 0;
 
     payments.forEach(payment => {
-        const date = new Date(payment.date);
+        // Use paymentDatetime instead of date
+        const date = new Date(payment.paymentDatetime);
         const monthYear = date.toLocaleString('default', { month: 'long', year: 'numeric' });
 
         if (!monthlyBalances[monthYear]) {

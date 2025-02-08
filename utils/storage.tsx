@@ -9,8 +9,7 @@ export const StorageUtils = {
     const newPayment: Payment = {
       ...payment,
       id,
-      isUploaded: false,
-      uploadStatus: 'uploading',
+      paymentDatetime: Number(payment.paymentDatetime) // Ensure it's a number
     };
 
     const payments = await this.getStoredPayments();
@@ -21,10 +20,21 @@ export const StorageUtils = {
   },
 
   async getStoredPayments(): Promise<Payment[]> {
-    const payments = await AsyncStorage.getItem(CONSTANTS.STORAGE_KEYS.PAYMENTS);
-    return payments ? JSON.parse(payments) : [];
+    try {
+      const payments = await AsyncStorage.getItem(CONSTANTS.STORAGE_KEYS.PAYMENTS);
+      if (!payments) return [];
+
+      const parsedPayments = JSON.parse(payments);
+      // Ensure paymentDatetime is always a number
+      return parsedPayments.map((payment: Payment) => ({
+        ...payment,
+        paymentDatetime: Number(payment.paymentDatetime)
+      }));
+    } catch (error) {
+      console.error('Error getting stored payments:', error);
+      return [];
+    }
   },
-  
 
   async markAsUploaded(id: string): Promise<void> {
     const payments = await this.getStoredPayments();
@@ -59,16 +69,17 @@ export const StorageUtils = {
 
   updatePayment: async (id: string, updates: Partial<Payment>) => {
     try {
-      const existingPayments = await AsyncStorage.getItem(CONSTANTS.STORAGE_KEYS.PAYMENTS);
-      if (existingPayments) {
-        const payments: Payment[] = JSON.parse(existingPayments);
-        const updatedPayments = payments.map(payment =>
-          payment.id === id
-            ? { ...payment, ...updates }
-            : payment
-        );
-        await AsyncStorage.setItem(CONSTANTS.STORAGE_KEYS.PAYMENTS, JSON.stringify(updatedPayments));
-      }
+      const payments = await StorageUtils.getStoredPayments(); // Use the fixed getStoredPayments
+      const updatedPayments = payments.map(payment =>
+        payment.id === id
+          ? {
+            ...payment,
+            ...updates,
+            paymentDatetime: Number(updates.paymentDatetime ?? payment.paymentDatetime)
+          }
+          : payment
+      );
+      await AsyncStorage.setItem(CONSTANTS.STORAGE_KEYS.PAYMENTS, JSON.stringify(updatedPayments));
     } catch (error) {
       console.error('Error updating payment:', error);
       throw error;
@@ -82,8 +93,6 @@ export const StorageUtils = {
 
       if (payment) {
         await this.updatePayment(id, {
-          uploadStatus: 'uploading',
-          uploadError: null
         });
       } else {
         throw new Error('Payment not found');
@@ -103,5 +112,5 @@ export const StorageUtils = {
       throw error;
     }
   },
-  
+
 };

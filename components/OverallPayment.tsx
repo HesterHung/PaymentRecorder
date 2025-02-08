@@ -111,7 +111,10 @@ const OverallPayment: React.FC = () => {
 
       const groupedArray = Object.entries(summary.monthlyBalances).map(([title, data]) => ({
         title,
-        data: data.payments.sort((a, b) => b.date - a.date),
+        data: data.payments.sort((a, b) => {
+          // This will sort in descending order (newest first)
+          return b.paymentDatetime - a.paymentDatetime;
+        }),
         totalAmount: data.balance
       }));
 
@@ -187,12 +190,15 @@ const OverallPayment: React.FC = () => {
 
 
   const renderReceiptItem = ({ item }: { item: Payment }) => {
-    const date = new Date(item.date);
+    const date = new Date(item.paymentDatetime);
     const formattedDate = date.toLocaleDateString();
     const formattedTime = date.toLocaleTimeString([], {
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
+      second: '2-digit'  // Added seconds
     });
+
+    const milliseconds = date.getMilliseconds().toString().padStart(3, '0');
 
     const displayAmount = item.amountType === 'total'
       ? item.amount / 2
@@ -208,7 +214,9 @@ const OverallPayment: React.FC = () => {
         <View style={styles.paymentHeader}>
           <View style={styles.dateTimeContainer}>
             <Text style={styles.paymentDate}>{formattedDate}</Text>
-            <Text style={styles.paymentTime}>{formattedTime}</Text>
+            <Text style={styles.paymentTime}>
+              {formattedTime}
+            </Text>
           </View>
           <View style={[
             styles.amountContainer,

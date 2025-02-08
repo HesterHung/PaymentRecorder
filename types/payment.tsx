@@ -52,7 +52,6 @@ export const PayersService = {
 
 export type Payer = typeof CONSTANTS.PAYERS[number];
 export type AmountType = typeof CONSTANTS.AMOUNT_TYPES[number];
-export type ImageUploadStatus = 'uploading' | 'uploaded' | 'error' | 'pending';
 
 export interface Payment {
   id: string;
@@ -60,12 +59,7 @@ export interface Payment {
   whoPaid: Payer;
   amount: number;
   amountType: string;
-  date: number;
-  serverUri: string | null;
-  isUploaded: boolean;
-  uploadError?: string | null;
-  uploadStatus: 'uploading' | 'uploaded' | 'error';
-  imageUploadStatus: ImageUploadStatus;
+  paymentDatetime: number;
 }
 
 export interface GroupedPayments {

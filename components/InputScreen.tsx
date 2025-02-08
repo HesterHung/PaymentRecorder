@@ -121,7 +121,7 @@ const InputScreen: React.FC = () => {
     setReceipt(null);
     setShowDatePicker(false);
     setShowTimePicker(false);
-    setExistingPayment(null); // Important: clear existing payment data
+    setExistingPayment(null);
   }, []);
 
   const handleAmountTypeSelect = (type: 'total' | 'specific') => {
@@ -269,7 +269,7 @@ const InputScreen: React.FC = () => {
         setTitle(payment.title || '');
         setWhoPaid(payment.whoPaid);
         setAmountType(payment.amountType as 'total' | 'specific');
-        setDate(new Date(payment.date));
+        setDate(new Date(payment.paymentDatetime)); // This preserves the full timestamp precision
 
         if (payment.amountType === 'total') {
           setTotalAmount(payment.amount.toString());
@@ -303,10 +303,7 @@ const InputScreen: React.FC = () => {
         whoPaid,
         amount: numericAmount,
         amountType,
-        date: date.getTime(),
-        serverUri: existingPayment?.serverUri || null,
-        uploadStatus: 'uploading',
-        imageUploadStatus: 'uploading',
+        paymentDatetime: date.getTime(),
       };
 
       if (existingPayment?.id) {
@@ -324,6 +321,9 @@ const InputScreen: React.FC = () => {
           text2: 'Payment saved successfully',
         });
       }
+
+      // Reset all form fields after successful save
+      resetForm();
 
       // Navigate back to overall payment page
       router.push("/(tabs)/overall-payment");
@@ -374,7 +374,11 @@ const InputScreen: React.FC = () => {
                 onPress={() => setShowTimePicker(true)}
               >
                 <Text style={styles.dateText}>
-                  {date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  {date.toLocaleTimeString([], {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit'  // Added seconds
+                  })}
                 </Text>
                 <Ionicons name="time" size={24} color={PRIMARY_COLOR} />
               </TouchableOpacity>
