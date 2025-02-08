@@ -452,7 +452,8 @@ const OverallPayment: React.FC = () => {
             <Text style={styles.balanceSubtitle}>
               {isBalanceVisible ? <BalanceSummaryText balance={totalBalance} /> : '***'}
             </Text>
-          </View><FlatList
+          </View>
+          <FlatList
             data={groupedPayments}
             renderItem={renderMonthSection}
             keyExtractor={item => item.title}

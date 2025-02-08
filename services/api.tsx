@@ -127,6 +127,46 @@ export class APIService {
             throw error;
         }
     }
+
+    static async updatePayment(id: string, payment: Omit<Payment, 'id'>): Promise<void> {
+        // Fix 1: Use the BASE_URL constant
+        const endpoint = `${this.BASE_URL}/records/${id}`;
+        
+        try {
+            // Fix 2: Send the complete payment data
+            const response = await fetch(endpoint, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                },
+                body: JSON.stringify({
+                    title: payment.title,
+                    whoPaid: payment.whoPaid,
+                    amount: payment.amount,
+                    amountType: payment.amountType,
+                    paymentDatetime: payment.paymentDatetime,
+                    description: "Changed payment details"
+                }),
+            });
+    
+            // Fix 3: Better error handling
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error('Update failed:', {
+                    status: response.status,
+                    statusText: response.statusText,
+                    body: errorText
+                });
+                throw new Error(`Failed to update payment: ${response.status} ${response.statusText}`);
+            }
+        } catch (error) {
+            console.error('Error in updatePayment:', error);
+            throw error;
+        }
+    }
+    
+    
 }
 
 export default APIService;

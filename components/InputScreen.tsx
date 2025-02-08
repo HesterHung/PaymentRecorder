@@ -307,45 +307,60 @@ const InputScreen: React.FC = () => {
       };
 
       try {
-        // Attempt to save to backend
-        await APIService.savePayment(paymentData);
-
-        Toast.show({
-          type: 'success',
-          text1: 'Success',
-          text2: 'Payment uploaded successfully',
-          position: 'bottom',
-        });
+        if (existingPayment?.id) {
+          // Update existing payment
+          await APIService.updatePayment(existingPayment.id, paymentData);
+          Toast.show({
+            type: 'success',
+            text1: 'Success',
+            text2: 'Payment updated successfully',
+            position: 'bottom',
+          });
+          resetForm();
+          router.push("/(tabs)/overall-payment");
+        } else {
+          // Create new payment
+          await APIService.savePayment(paymentData);
+          Toast.show({
+            type: 'success',
+            text1: 'Success',
+            text2: 'Payment created successfully',
+            position: 'bottom',
+          });
+          resetForm();
+          router.push("/(tabs)/overall-payment");
+        }
 
       } catch (error: unknown) {
-        // Log the error with proper type checking
         if (error instanceof Error) {
           console.error('Error saving to backend:', error.message);
         } else {
           console.error('Unknown error saving to backend');
         }
 
-        // If backend save fails, save locally
         if (existingPayment?.id) {
-          await StorageUtils.updatePayment(existingPayment.id, paymentData);
+          // For update failures, just show error message
+          Toast.show({
+            type: 'error',
+            text1: 'Update Failed',
+            text2: 'Please try again later.',
+            position: 'bottom',
+          });
         } else {
+          // For new payments, save locally if backend fails
           await StorageUtils.savePayment(paymentData);
+          Toast.show({
+            type: 'error',
+            text1: 'Saved Locally',
+            text2: 'Could not connect to server. Payment saved locally.',
+            position: 'bottom',
+          });
+          resetForm();
+          router.push("/(tabs)/overall-payment");
         }
-
-        Toast.show({
-          type: 'error',
-          text1: 'Saved Locally',
-          text2: 'Could not connect to server. Payment saved locally.',
-          position: 'bottom',
-        });
       }
 
-      // Reset form and navigate regardless of save location
-      resetForm();
-      router.push("/(tabs)/overall-payment");
-
     } catch (error: unknown) {
-      // Log the error with proper type checking
       if (error instanceof Error) {
         console.error('Error handling payment:', error.message);
       } else {
@@ -360,7 +375,6 @@ const InputScreen: React.FC = () => {
       });
     }
   }
-
 
   return (
     <View style={styles.pageContainer}>
