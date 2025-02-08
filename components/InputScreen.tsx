@@ -9,6 +9,7 @@ import Toast from 'react-native-toast-message';
 import userStorage from '@/services/userStorage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PRIMARY_COLOR, USER_COLORS } from '@/constants/Colors';
+import AmountInput from './AmountInput';
 
 
 //components\InputScreen.tsx
@@ -521,20 +522,19 @@ const InputScreen: React.FC = () => {
             </View>
 
             <View style={styles.amountInputContainer}>
-              <View style={styles.inputWrapper}>
-                <Text style={styles.currencySymbol}>$</Text>
-                <TextInput
-                  ref={amountType === 'total' ? totalAmountRef : specificAmountRef}
-                  style={[styles.input, styles.amountInput]}
-                  placeholder={amountType === 'total'
-                    ? "Enter total amount to split"
-                    : "Enter amount you pay for other"}
-                  value={amountType === 'total' ? totalAmount : specificAmount}
-                  onChangeText={amountType === 'total' ? setTotalAmount : setSpecificAmount}
-                  keyboardType="decimal-pad"
-                  placeholderTextColor="#9CA3AF"
+              {amountType === 'total' ? (
+                <AmountInput
+                  value={totalAmount}
+                  onChange={setTotalAmount}
+                  placeholder="Enter total amount to split"
                 />
-              </View>
+              ) : (
+                <AmountInput
+                  value={specificAmount}
+                  onChange={setSpecificAmount}
+                  placeholder="Enter amount you pay for other"
+                />
+              )}
             </View>
 
 
