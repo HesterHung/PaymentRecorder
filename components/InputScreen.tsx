@@ -294,7 +294,7 @@ const InputScreen: React.FC = () => {
         : parseFloat(specificAmount) || 0;
 
       if (!whoPaid || !numericAmount || numericAmount === 0) {
-        Alert.alert('Error', 'Please fill in all required fields');
+        Alert.alert('Hey!', 'Please fill in the $$$');
         return;
       }
 
