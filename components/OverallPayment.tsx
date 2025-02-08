@@ -1,6 +1,6 @@
 //components\OverallPayment.tsx
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, Dimensions, TouchableOpacity, Platform, UIManager, LayoutAnimation } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Dimensions, TouchableOpacity, Platform, UIManager, LayoutAnimation, ActivityIndicator } from 'react-native';
 import { StorageUtils } from '../utils/storage';
 import { Ionicons } from '@expo/vector-icons';
 import { Payment, GroupedPayments, CONSTANTS } from '../types/payment';
@@ -10,6 +10,7 @@ import userStorage from '@/services/userStorage';
 import { BalanceSummaryText, calculatePaymentBalance, formatBalance } from '@/utils/paymentCalculator';
 import { USER_COLORS } from '@/constants/Colors';
 import Toast from 'react-native-toast-message';
+import APIService from '@/services/api';
 
 const { width } = Dimensions.get('window');
 const peopleNumber = 2;
@@ -27,6 +28,8 @@ const OverallPayment: React.FC = () => {
   const [expandedMonths, setExpandedMonths] = useState<{ [key: string]: boolean }>({});
   const [currentUser, setCurrentUser] = useState<string>('');
   const [users, setUsers] = useState<[string, string]>(CONSTANTS.PAYERS);
+  const [isLoading, setIsLoading] = useState(false);
+
 
 
   useEffect(() => {
@@ -53,16 +56,12 @@ const OverallPayment: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
-  useFocusEffect(
-    React.useCallback(() => {
-      loadReceipts();
-    }, [])
-  );
 
   useFocusEffect(
     React.useCallback(() => {
-      loadReceipts();
-      return () => { }; // cleanup if needed
+      setIsLoading(true);
+      loadReceipts()
+        .finally(() => setIsLoading(false));
     }, [])
   );
 
@@ -106,24 +105,57 @@ const OverallPayment: React.FC = () => {
 
   const loadReceipts = async () => {
     try {
-      const receipts = await StorageUtils.getStoredPayments();
-      const summary = calculatePaymentBalance(receipts);
+      const receipts = await APIService.getPayments();
+      console.log('Received receipts:', receipts); // Debug log
 
-      const groupedArray = Object.entries(summary.monthlyBalances).map(([title, data]) => ({
-        title,
-        data: data.payments.sort((a, b) => {
-          // This will sort in descending order (newest first)
-          return b.paymentDatetime - a.paymentDatetime;
-        }),
-        totalAmount: data.balance
-      }));
+      if (!Array.isArray(receipts)) {
+        console.error('Expected array of receipts, got:', receipts);
+        setGroupedPayments([]);
+        setTotalBalance(0);
+        return;
+      }
+
+      // Filter out any invalid payments
+      const validReceipts = receipts.filter(receipt =>
+        receipt &&
+        typeof receipt.amount === 'number' &&
+        typeof receipt.paymentDatetime === 'number'
+      );
+
+      const summary = calculatePaymentBalance(validReceipts);
+      console.log('Payment summary:', summary); // Debug log
+
+      const groupedArray = Object.entries(summary.monthlyBalances)
+        .map(([title, data]) => ({
+          title,
+          data: data.payments.sort((a, b) => b.paymentDatetime - a.paymentDatetime),
+          totalAmount: data.balance
+        }))
+        .sort((a, b) => {
+          const dateA = new Date(a.data[0]?.paymentDatetime || 0);
+          const dateB = new Date(b.data[0]?.paymentDatetime || 0);
+          return dateB.getTime() - dateA.getTime();
+        });
 
       setTotalBalance(summary.totalBalance);
       setGroupedPayments(groupedArray);
+
     } catch (error) {
       console.error('Error loading receipts:', error);
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: 'Failed to load payments'
+      });
+      setGroupedPayments([]);
+      setTotalBalance(0);
     }
   };
+
+
+
+  // In OverallPayment.tsx
+  // Update handleLongPress:
 
   const handleLongPress = (payment: Payment) => {
     Alert.alert(
@@ -139,15 +171,20 @@ const OverallPayment: React.FC = () => {
           style: "destructive",
           onPress: async () => {
             try {
-              //await StorageUtils.deletePayment(payment.id);
-              // Reload the payments list
-              loadReceipts();
+              await APIService.deletePayment(payment.id);
+              Toast.show({
+                type: 'success',
+                text1: 'Success',
+                text2: 'Payment deleted successfully'
+              });
+              loadReceipts(); // Reload the list
             } catch (error) {
               console.error('Error deleting payment:', error);
-              Alert.alert(
-                "Error",
-                "Failed to delete payment. Please try again."
-              );
+              Toast.show({
+                type: 'error',
+                text1: 'Error',
+                text2: 'Failed to delete payment'
+              });
             }
           }
         }
@@ -299,39 +336,43 @@ const OverallPayment: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.balanceCard}>
-        <View style={styles.balanceHeader}>
-          <Text style={styles.balanceTitle}>Overall Balance</Text>
-          <TouchableOpacity onPress={toggleBalanceVisibility}>
-            <Ionicons
-              name={isBalanceVisible ? "eye-outline" : "eye-off-outline"}
-              size={24}
-              color="#666"
-            />
-          </TouchableOpacity>
+      {isLoading ? (
+        <View style={[styles.container, styles.centerContent]}>
+          <ActivityIndicator size="large" color="#0000ff" />
         </View>
-        <Text style={styles.balanceAmount}>
-          {isBalanceVisible ? formatBalance(totalBalance) : '•••••'}
-        </Text>
-        <Text style={styles.balanceSubtitle}>
-          {isBalanceVisible ? <BalanceSummaryText balance={totalBalance} /> : '***'}
-        </Text>
-      </View>
+      ) : (
+        <>
+          <View style={styles.balanceCard}>
+            <View style={styles.balanceHeader}>
+              <Text style={styles.balanceTitle}>Overall Balance</Text>
+              <TouchableOpacity onPress={toggleBalanceVisibility}>
+                <Ionicons
+                  name={isBalanceVisible ? "eye-outline" : "eye-off-outline"}
+                  size={24}
+                  color="#666" />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.balanceAmount}>
+              {isBalanceVisible ? formatBalance(totalBalance) : '•••••'}
+            </Text>
+            <Text style={styles.balanceSubtitle}>
+              {isBalanceVisible ? <BalanceSummaryText balance={totalBalance} /> : '***'}
+            </Text>
+          </View><FlatList
+            data={groupedPayments}
+            renderItem={renderMonthSection}
+            keyExtractor={item => item.title}
+            contentContainerStyle={styles.listContainer} /><TouchableOpacity
+              style={styles.resetButton}
+              onPress={handleResetAll}
+            >
+            <Text style={styles.resetButtonText}>Reset All Payments (DEBUG USE)</Text>
 
-      <FlatList
-        data={groupedPayments}
-        renderItem={renderMonthSection}
-        keyExtractor={item => item.title}
-        contentContainerStyle={styles.listContainer}
-      />
+          </TouchableOpacity>
+        </>
 
-      <TouchableOpacity
-        style={styles.resetButton}
-        onPress={handleResetAll}
-      >
-        <Text style={styles.resetButtonText}>Reset All Payments (DEBUG USE)</Text>
+      )}
 
-      </TouchableOpacity>
     </View>
   );
 };
@@ -488,6 +529,10 @@ const styles = StyleSheet.create({
   monthOwes: {
     fontSize: 12,
     color: '#666',
+  },
+  centerContent: {
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
 
