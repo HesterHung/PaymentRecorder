@@ -126,6 +126,7 @@ const ProfilePage = () => {
                                                 {currentUser === user ? 'Current' : 'Set as Current'}
                                             </Text>
                                         </TouchableOpacity>
+                                        {/*
                                         <TouchableOpacity
                                             onPress={() => {
                                                 setEditingUser(user);
@@ -139,6 +140,8 @@ const ProfilePage = () => {
                                                 color={getUserColor(index, currentUser === user)}
                                             />
                                         </TouchableOpacity>
+                                        */}
+
                                     </View>
                                 </View>
                             )}
