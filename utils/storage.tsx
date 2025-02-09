@@ -100,20 +100,34 @@ export class StorageUtils {
       throw error;
     }
   }
+  static async deletePayment(paymentId: string): Promise<void> {
+    try {
+      // Remove from main storage
+      const payments = await this.getStoredPayments();
+      const updatedPayments = payments.filter(p => p.id !== paymentId);
+      await AsyncStorage.setItem(STORAGE_KEYS.PAYMENTS, JSON.stringify(updatedPayments));
+
+      // Also remove from pending uploads if it exists there
+      await this.removePendingUpload(paymentId);
+    } catch (error) {
+      console.error('Error deleting payment:', error);
+      throw error;
+    }
+  }
 }
 
 function generateUniqueId(): string {
   // Get current timestamp
   const timestamp = Date.now();
-  
+
   // Generate a random number between 0 and 999999
   const random = Math.floor(Math.random() * 1000000);
-  
+
   // Convert to base 36 (uses letters and numbers) and remove the '0.' at the start
   const randomStr = random.toString(36);
-  
+
   // Combine timestamp and random string
   const uniqueId = `${timestamp}-${randomStr}`;
-  
+
   return uniqueId;
 }

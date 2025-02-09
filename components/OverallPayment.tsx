@@ -192,7 +192,13 @@ const OverallPayment: React.FC = () => {
           onPress: async () => {
             try {
               if (isLocal) {
-                await StorageUtils.removePendingUpload(payment.id);
+                await StorageUtils.deletePayment(payment.id);
+                // Update local state immediately
+                setLocalPayments(prev => {
+                  const next = new Set(prev);
+                  next.delete(payment.id);
+                  return next;
+                });
               } else {
                 await APIService.deletePayment(payment.id);
               }
