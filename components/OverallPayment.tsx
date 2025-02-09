@@ -270,7 +270,7 @@ const OverallPayment: React.FC = () => {
                 title: payment.title,
                 whoPaid: payment.whoPaid,
                 amount: payment.amount,
-                amountType: payment.amountType as 'total' | 'specific',
+                amountType: payment.amountType as 'total' | 'specify',
                 paymentDatetime: payment.paymentDatetime
               });
 
@@ -293,7 +293,7 @@ const OverallPayment: React.FC = () => {
               Toast.show({
                 type: 'error',
                 text1: 'Error',
-                text2: 'Failed to upload payment'
+                text2: 'Failed to upload payment. Please try again later.'
               });
             }
           }

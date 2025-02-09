@@ -20,7 +20,7 @@ const InputScreen: React.FC = () => {
 
   // Initialize state with existingPayment data
   const [title, setTitle] = useState('');
-  const [amountType, setAmountType] = useState<'total' | 'specific'>('total');
+  const [amountType, setAmountType] = useState<'total' | 'specify'>('total');
   const [totalAmount, setTotalAmount] = useState('');
   const [specificAmount, setSpecificAmount] = useState('');
   const [date, setDate] = useState(new Date());
@@ -124,7 +124,7 @@ const InputScreen: React.FC = () => {
     setExistingPayment(null);
   }, []);
 
-  const handleAmountTypeSelect = (type: 'total' | 'specific') => {
+  const handleAmountTypeSelect = (type: 'total' | 'specify') => {
     setAmountType(type);
     // Use setTimeout to ensure the focus happens after the state update
     setTimeout(() => {
@@ -268,7 +268,7 @@ const InputScreen: React.FC = () => {
         setExistingPayment(payment);
         setTitle(payment.title || '');
         setWhoPaid(payment.whoPaid);
-        setAmountType(payment.amountType as 'total' | 'specific');
+        setAmountType(payment.amountType as 'total' | 'specify');
         setDate(new Date(payment.paymentDatetime)); // This preserves the full timestamp precision
 
         if (payment.amountType === 'total') {
@@ -290,25 +290,27 @@ const InputScreen: React.FC = () => {
   async function handleSubmit(event: GestureResponderEvent): Promise<void> {
     try {
       const numericAmount = amountType === 'total'
-        ? parseFloat(totalAmount) || 0
-        : parseFloat(specificAmount) || 0;
+        ? parseFloat(totalAmount)
+        : parseFloat(specificAmount);
 
-      if (!whoPaid || !numericAmount || numericAmount === 0) {
+      if (!whoPaid || !numericAmount || numericAmount <= 0) {
         Alert.alert('Hey!', 'Please fill in the $$$');
         return;
       }
+
+      // Convert 'specify' to 'specify' when sending to the API
+      const apiAmountType = amountType === 'total' ? 'specify' : amountType;
 
       const paymentData = {
         title: title || 'Untitled',
         whoPaid,
         amount: numericAmount,
-        amountType,
+        amountType: apiAmountType, // Use the converted amount type
         paymentDatetime: date.getTime(),
       };
 
       try {
         if (existingPayment?.id) {
-          // Update existing payment
           await APIService.updatePayment(existingPayment.id, paymentData);
           Toast.show({
             type: 'success',
@@ -316,10 +318,7 @@ const InputScreen: React.FC = () => {
             text2: 'Payment updated successfully',
             position: 'bottom',
           });
-          resetForm();
-          router.push("/(tabs)/overall-payment");
         } else {
-          // Create new payment
           await APIService.savePayment(paymentData);
           Toast.show({
             type: 'success',
@@ -327,19 +326,14 @@ const InputScreen: React.FC = () => {
             text2: 'Payment created successfully',
             position: 'bottom',
           });
-          resetForm();
-          router.push("/(tabs)/overall-payment");
         }
 
-      } catch (error: unknown) {
-        if (error instanceof Error) {
-          console.error('Error saving to backend:', error.message);
-        } else {
-          console.error('Unknown error saving to backend');
-        }
+        resetForm();
+        router.push("/(tabs)/overall-payment");
+      } catch (error) {
+        console.error('API Error:', error);
 
         if (existingPayment?.id) {
-          // For update failures, just show error message
           Toast.show({
             type: 'error',
             text1: 'Update Failed',
@@ -347,7 +341,6 @@ const InputScreen: React.FC = () => {
             position: 'bottom',
           });
         } else {
-          // For new payments, save locally if backend fails
           await StorageUtils.savePayment(paymentData);
           Toast.show({
             type: 'error',
@@ -359,14 +352,8 @@ const InputScreen: React.FC = () => {
           router.push("/(tabs)/overall-payment");
         }
       }
-
-    } catch (error: unknown) {
-      if (error instanceof Error) {
-        console.error('Error handling payment:', error.message);
-      } else {
-        console.error('Unknown error handling payment');
-      }
-
+    } catch (error) {
+      console.error('Submit Error:', error);
       Toast.show({
         type: 'error',
         text1: 'Error',
@@ -534,29 +521,29 @@ const InputScreen: React.FC = () => {
               <TouchableOpacity
                 style={[
                   styles.amountTypeBox,
-                  amountType === 'specific' && styles.selectedAmountTypeBox
+                  amountType === 'specify' && styles.selectedAmountTypeBox
                 ]}
-                onPress={() => handleAmountTypeSelect('specific')}
+                onPress={() => handleAmountTypeSelect('specify')}
               >
                 <View style={[
                   styles.iconCircle,
-                  amountType === 'specific' && styles.selectedIconCircle
+                  amountType === 'specify' && styles.selectedIconCircle
                 ]}>
                   <Ionicons
                     name="git-branch-outline"
                     size={20}
-                    color={amountType === 'specific' ? 'white' : '#6B7280'}
+                    color={amountType === 'specify' ? 'white' : '#6B7280'}
                   />
                 </View>
                 <Text style={[
                   styles.amountTypeTitle,
-                  amountType === 'specific' && styles.selectedAmountTypeTitle
+                  amountType === 'specify' && styles.selectedAmountTypeTitle
                 ]}>
                   Specific Amount
                 </Text>
                 <Text style={[
                   styles.amountTypeDescription,
-                  amountType === 'specific' && styles.selectedAmountTypeDescription
+                  amountType === 'specify' && styles.selectedAmountTypeDescription
                 ]}>
                   For specific user
                 </Text>

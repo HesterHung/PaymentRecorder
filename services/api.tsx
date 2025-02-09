@@ -2,11 +2,11 @@
 
 import { Payment } from "@/types/payment";
 
-export interface PaymentPayload { //without id, for POSTing
+export interface PaymentPayload {
     title: string;
     whoPaid: string;
     amount: number;
-    amountType: 'total' | 'specific';
+    amountType: 'total' | 'specify'; // Updated type definition
     paymentDatetime: number;
 }
 
@@ -100,7 +100,7 @@ export class APIService {
                 title: record.title || '',
                 whoPaid: record.whoPaid || '',
                 amount: Number(record.amount) || 0,
-                amountType: record.amountType || 'specific',
+                amountType: record.amountType || 'specify',
                 paymentDatetime: Number(record.paymentDatetime) || Date.now()
             }));
 

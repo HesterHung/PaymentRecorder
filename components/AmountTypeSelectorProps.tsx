@@ -3,11 +3,11 @@ import { View, Text, TouchableOpacity, TextInput, StyleSheet, Animated } from 'r
 import { Ionicons } from '@expo/vector-icons';
 
 interface AmountTypeSelectorProps {
-  onAmountTypeChange: (type: 'total' | 'specific') => void;
+  onAmountTypeChange: (type: 'total' | 'specify') => void;
   onAmountChange: (amount: string) => void;
   totalAmount: string;
   specificAmount: string;
-  amountType: 'total' | 'specific';
+  amountType: 'total' | 'specify';
 }
 
 const AmountTypeSelector: React.FC<AmountTypeSelectorProps> = ({
@@ -19,7 +19,7 @@ const AmountTypeSelector: React.FC<AmountTypeSelectorProps> = ({
 }) => {
   const [slideAnim] = useState(new Animated.Value(0));
 
-  const handleAmountTypeChange = (newType: 'total' | 'specific') => {
+  const handleAmountTypeChange = (newType: 'total' | 'specify') => {
     Animated.spring(slideAnim, {
       toValue: newType === 'total' ? 0 : 1,
       useNativeDriver: false,
@@ -70,19 +70,19 @@ const AmountTypeSelector: React.FC<AmountTypeSelectorProps> = ({
         <TouchableOpacity
           style={[
             styles.button,
-            amountType === 'specific' && styles.activeButton,
+            amountType === 'specify' && styles.activeButton,
           ]}
-          onPress={() => handleAmountTypeChange('specific')}
+          onPress={() => handleAmountTypeChange('specify')}
         >
           <Ionicons
             name="git-branch-outline"
             size={20}
-            color={amountType === 'specific' ? '#2563EB' : '#6B7280'}
+            color={amountType === 'specify' ? '#2563EB' : '#6B7280'}
           />
           <Text
             style={[
               styles.buttonText,
-              amountType === 'specific' && styles.activeButtonText,
+              amountType === 'specify' && styles.activeButtonText,
             ]}
           >
             Specific

@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const CONSTANTS = {
-  AMOUNT_TYPES: ['total', 'specific'] as const,
+  AMOUNT_TYPES: ['total', 'specify'] as const,
   STORAGE_KEYS: {
     PAYMENTS: 'stored_payments',
     USERS: 'users'
@@ -58,7 +58,7 @@ export interface Payment {
   title: string;
   whoPaid: Payer;
   amount: number;
-  amountType: string;
+  amountType: 'total' | 'specify'; // Updated type definition
   paymentDatetime: number;
 }
 
