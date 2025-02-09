@@ -464,13 +464,15 @@ const OverallPayment: React.FC = () => {
             renderItem={renderMonthSection}
             keyExtractor={item => item.title}
             contentContainerStyle={styles.listContainer} />
+          {/*
           <TouchableOpacity
             style={styles.resetButton}
             onPress={handleResetAll}
           >
             <Text style={styles.resetButtonText}>Reset All Payments (DEBUG USE)</Text>
-
           </TouchableOpacity>
+          */}
+
         </>
 
       )}

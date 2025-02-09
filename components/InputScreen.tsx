@@ -545,7 +545,7 @@ const InputScreen: React.FC = () => {
                   styles.amountTypeDescription,
                   amountType === 'specify' && styles.selectedAmountTypeDescription
                 ]}>
-                  For specific user
+                  Paid for another one
                 </Text>
               </TouchableOpacity>
             </View>
