@@ -3,7 +3,7 @@ import { View, TextInput, ScrollView, Image, StyleSheet, TouchableOpacity, Text,
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Payment } from '@/types/payment';
+import { CONSTANTS, Payment } from '@/types/payment';
 import { StorageUtils } from '@/utils/storage';
 import Toast from 'react-native-toast-message';
 import userStorage from '@/services/userStorage';
@@ -27,7 +27,7 @@ const InputScreen: React.FC = () => {
   const [receipt, setReceipt] = useState<string | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
-  const [users, setUsers] = useState<[string, string]>(['User 1', 'User 2']);
+  const [users, setUsers] = useState<[string, string]>([CONSTANTS.PAYERS[0], CONSTANTS.PAYERS[1]]);
   const [whoPaid, setWhoPaid] = useState<string>('');
   const totalAmountRef = useRef<TextInput>(null);
   const specificAmountRef = useRef<TextInput>(null);

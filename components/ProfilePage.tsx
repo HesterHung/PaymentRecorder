@@ -3,9 +3,10 @@ import { View, Text, TextInput, TouchableOpacity, Alert, ScrollView, StyleSheet 
 import { Ionicons } from '@expo/vector-icons';
 import userStorage from '@/services/userStorage';
 import { USER_COLORS } from '@/constants/Colors';
+import { CONSTANTS } from '@/types/payment';
 
 const ProfilePage = () => {
-    const [users, setUsers] = useState<[string, string]>(['User 1', 'User 2']);
+    const [users, setUsers] = useState<[string, string]>([CONSTANTS.PAYERS[0], CONSTANTS.PAYERS[1]]);
     const [editingUser, setEditingUser] = useState<string | null>(null);
     const [editName, setEditName] = useState('');
     const [currentUser, setCurrentUser] = useState('');

@@ -1,4 +1,5 @@
 import { USER_COLORS } from '@/constants/Colors';
+import { CONSTANTS } from '@/types/payment';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const USER_STORAGE_KEY = 'users';
@@ -56,13 +57,13 @@ class UserStorageService {
                 }
             }
             // Default users if none found
-            const defaultUsers: [string, string] = ['User 1', 'User 2'];
+            const defaultUsers: [string, string] = [CONSTANTS.PAYERS[0], CONSTANTS.PAYERS[1]];
             await this.setUsers(defaultUsers);
             this.cachedUsers = defaultUsers;
             return defaultUsers;
         } catch (error) {
             console.error('Error loading users:', error);
-            const defaultUsers: [string, string] = ['User 1', 'User 2'];
+            const defaultUsers: [string, string] = [CONSTANTS.PAYERS[0], CONSTANTS.PAYERS[1]];
             this.cachedUsers = defaultUsers;
             return defaultUsers;
         }

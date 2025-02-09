@@ -1,5 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+// Define PayerTuple type
+type PayerTuple = [string, string];
+
 export const CONSTANTS = {
   AMOUNT_TYPES: ['total', 'specify'] as const,
   STORAGE_KEYS: {
@@ -7,16 +10,18 @@ export const CONSTANTS = {
     USERS: 'users'
   },
   // Default PAYERS array for immediate use
-  PAYERS: ['Hester', 'Lok'] as [string, string],
+  PAYERS: ['Hester', 'Lok'] as PayerTuple,
   // Method to update PAYERS
-  async updatePayers() {
+  async updatePayers(): Promise<PayerTuple> {
     try {
       const storedUsers = await AsyncStorage.getItem('users');
       const users = storedUsers ? JSON.parse(storedUsers) : [];
-      return users.length >= 2 ? [users[0], users[1]] : ['User 1', 'User 2'];
+      return users.length >= 2 
+        ? [users[0], users[1]] as PayerTuple 
+        : CONSTANTS.PAYERS;
     } catch (error) {
       console.error('Error getting payers:', error);
-      return ['User 1', 'User 2'];
+      return CONSTANTS.PAYERS;
     }
   }
 } as const;
@@ -24,9 +29,9 @@ export const CONSTANTS = {
 // Create a service to manage PAYERS state
 export const PayersService = {
   currentPayers: CONSTANTS.PAYERS,
-  listeners: new Set<(payers: [string, string]) => void>(),
+  listeners: new Set<(payers: PayerTuple) => void>(),
 
-  setPayers(payers: [string, string]) {
+  setPayers(payers: PayerTuple) {
     this.currentPayers = payers;
     this.notifyListeners();
   },
@@ -35,7 +40,7 @@ export const PayersService = {
     return this.currentPayers;
   },
 
-  subscribe(listener: (payers: [string, string]) => void) {
+  subscribe(listener: (payers: PayerTuple) => void) {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
   },
@@ -46,7 +51,7 @@ export const PayersService = {
 
   async initialize() {
     const payers = await CONSTANTS.updatePayers();
-    this.setPayers(payers[0]);
+    this.setPayers(payers); // Pass the entire payers tuple
   }
 };
 
@@ -58,7 +63,7 @@ export interface Payment {
   title: string;
   whoPaid: Payer;
   amount: number;
-  amountType: 'total' | 'specify'; // Updated type definition
+  amountType: 'total' | 'specify';
   paymentDatetime: number;
 }
 
