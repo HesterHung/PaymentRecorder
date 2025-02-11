@@ -521,6 +521,7 @@ const OverallPayment: React.FC = () => {
                 text2: 'Please wait'
               });
 
+              // Upload to server
               await APIService.savePayment({
                 title: payment.title,
                 whoPaid: payment.whoPaid,
@@ -530,7 +531,9 @@ const OverallPayment: React.FC = () => {
               });
 
               // Remove from local storage
-              await StorageUtils.removePendingUpload(payment.id);
+              await StorageUtils.deletePayment(payment.id);
+
+              // Update local payments state
               setLocalPayments(prev => {
                 const next = new Set(prev);
                 next.delete(payment.id);
@@ -542,7 +545,11 @@ const OverallPayment: React.FC = () => {
                 text1: 'Success',
                 text2: 'Payment uploaded successfully'
               });
-              loadReceipts();
+
+              // Refresh both local and API data
+              await loadLocalReceipts();
+              await loadApiReceipts(false); // Don't retry when we just uploaded
+
             } catch (error) {
               console.error('Error uploading payment:', error);
               Toast.show({
