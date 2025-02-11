@@ -288,20 +288,20 @@ const InputScreen: React.FC = () => {
   }, [params.existingPayment]);
 
   async function handleSubmit(event: GestureResponderEvent): Promise<void> {
-    if (isSubmitting) return; // Prevent multiple submissions
+    if (isSubmitting) return;
     setIsSubmitting(true);
-  
+
     try {
       const numericAmount = amountType === 'total'
         ? parseFloat(totalAmount)
         : parseFloat(specificAmount);
-  
+
       if (!whoPaid || !numericAmount || numericAmount <= 0) {
         setIsSubmitting(false);
         Alert.alert('Hey!', 'Please fill in the $$$');
         return;
       }
-  
+
       const paymentData = {
         title: title || 'Untitled',
         whoPaid,
@@ -309,9 +309,9 @@ const InputScreen: React.FC = () => {
         amountType: amountType,
         paymentDatetime: date.getTime(),
       };
-  
+
       try {
-        // Try sending the payment to the API.
+        // Try sending the payment to the API
         if (existingPayment?.id) {
           await APIService.updatePayment(existingPayment.id, paymentData);
           Toast.show({
@@ -329,20 +329,48 @@ const InputScreen: React.FC = () => {
             position: 'bottom',
           });
         }
-      } catch (error) {
-        // If the API call fails, assume offline.
-        console.error('API call failed, saving payment locally:', error);
-        await StorageUtils.savePayment(paymentData);
-        Toast.show({
-          type: 'info',
-          text1: 'Offline Mode',
-          text2: 'Could not connect to server. Payment saved locally.',
-          position: 'bottom',
+
+        // If API save was successful, navigate back
+        resetForm();
+        router.push({
+          pathname: "/(tabs)/overall-payment",
+          params: { timestamp: Date.now() }
         });
+
+      } catch (error) {
+        // If API call fails, save locally
+        console.error('API call failed, saving payment locally:', error);
+
+        try {
+          const savedLocalPayment = await StorageUtils.savePayment(paymentData);
+
+          Toast.show({
+            type: 'info',
+            text1: 'Offline Mode',
+            text2: 'Could not connect to server. Payment saved locally.',
+            position: 'bottom',
+          });
+
+          // Navigate with local payment ID
+          resetForm();
+          router.push({
+            pathname: "/(tabs)/overall-payment",
+            params: {
+              newLocalPaymentId: savedLocalPayment.id,
+              timestamp: Date.now()
+            }
+          });
+        } catch (localError) {
+          console.error('Error saving payment locally:', localError);
+          Toast.show({
+            type: 'error',
+            text1: 'Error',
+            text2: 'Failed to save payment locally',
+            position: 'bottom',
+          });
+        }
       }
-  
-      resetForm();
-      router.push("/(tabs)/overall-payment");
+
     } catch (error) {
       console.error('Submit Error:', error);
       Toast.show({
@@ -451,9 +479,9 @@ const InputScreen: React.FC = () => {
                     styles.payerCircle,
                     whoPaid === payer
                       ? {
-                          backgroundColor: USER_COLORS[users.indexOf(payer)],
-                          borderColor: USER_COLORS[users.indexOf(payer)]
-                        }
+                        backgroundColor: USER_COLORS[users.indexOf(payer)],
+                        borderColor: USER_COLORS[users.indexOf(payer)]
+                      }
                       : styles.inactivePayerCircle
                   ]}>
                     <Ionicons

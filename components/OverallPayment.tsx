@@ -1,5 +1,5 @@
 //components\OverallPayment.tsx
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, StyleSheet, FlatList, Dimensions, TouchableOpacity, Platform, UIManager, LayoutAnimation, ActivityIndicator } from 'react-native';
 import { StorageUtils } from '../utils/storage';
 import { Ionicons } from '@expo/vector-icons';
@@ -35,6 +35,7 @@ const OverallPayment: React.FC = () => {
   const [isLocalLoading, setIsLocalLoading] = useState(false);
   const [retryingPayments, setRetryingPayments] = useState<{ [key: string]: boolean }>({});
   const [failedPayments, setFailedPayments] = useState<Set<string>>(new Set());
+  const uploadingPayments = useRef(new Set());
 
   useEffect(() => {
     const fetchLocalPayments = async () => {
@@ -74,7 +75,7 @@ const OverallPayment: React.FC = () => {
       const loadData = async () => {
         try {
           // Load local data first
-          await loadLocalReceipts();
+          await loadReceipts();
           // Then load API data
           await loadApiReceipts();
         } catch (error) {
@@ -94,138 +95,23 @@ const OverallPayment: React.FC = () => {
     }));
   };
 
-  const loadLocalReceipts = async () => {
-    setIsLocalLoading(true);
-    try {
-      const localReceipts = await StorageUtils.getStoredPayments();
-      console.log('Local receipts loaded:', localReceipts); // Debug log
 
-      if (localReceipts && localReceipts.length > 0) {
-        setLocalPayments(new Set(localReceipts.map(p => p.id)));
-        const localSummary = calculatePaymentBalance(localReceipts);
-
-        const groupedArray = Object.entries(localSummary.monthlyBalances)
-          .map(([title, data]) => ({
-            title,
-            data: data.payments.sort((a, b) => b.paymentDatetime - a.paymentDatetime),
-            totalAmount: data.balance
-          }))
-          .sort((a, b) => {
-            const dateA = new Date(a.data[0]?.paymentDatetime || 0);
-            const dateB = new Date(b.data[0]?.paymentDatetime || 0);
-            return dateB.getTime() - dateA.getTime();
-          });
-
-        setTotalBalance(localSummary.totalBalance);
-        setGroupedPayments(groupedArray);
-      }
-    } catch (error) {
-      console.error('Error loading local receipts:', error);
-      Toast.show({
-        type: 'error',
-        text1: 'Error',
-        text2: 'Failed to load local payments'
-      });
-    } finally {
-      setIsLocalLoading(false);
-    }
-  };
 
   const loadApiReceipts = async () => {
     setIsApiLoading(true);
     try {
+      // Get online receipts first
       const onlineReceipts = await APIService.getPayments();
       const localReceipts = await StorageUtils.getStoredPayments();
 
       // Create a map of online receipt IDs for faster lookup
       const onlineReceiptIds = new Set(onlineReceipts.map(receipt => receipt.id));
 
-      // Create a map of local payment IDs that need retry
-      const localPaymentsToRetry = new Map();
-      localReceipts.forEach(payment => {
-        // Only retry if payment is local and not already on server
-        if (localPayments.has(payment.id) &&
-          !onlineReceiptIds.has(payment.id) &&
-          !failedPayments.has(payment.id)) {
-          localPaymentsToRetry.set(payment.id, payment);
-        }
-      });
-
-      // Start retry process for local payments
-      if (localPaymentsToRetry.size > 0) {
-        setRetryingPayments(prev => {
-          const next = { ...prev };
-          localPaymentsToRetry.forEach((_, id) => {
-            next[id] = true;
-          });
-          return next;
-        });
-
-        // Retry logic for each payment
-        const retryPromises = Array.from(localPaymentsToRetry.entries()).map(([id, payment]) =>
-          new Promise(async (resolve) => {
-            let retryCount = 0;
-            const maxRetries = 4;
-            const retryInterval = 5000;
-
-            const attemptUpload = async () => {
-              try {
-                await APIService.savePayment({
-                  title: payment.title,
-                  whoPaid: payment.whoPaid,
-                  amount: payment.amount,
-                  amountType: payment.amountType as 'total' | 'specify',
-                  paymentDatetime: payment.paymentDatetime
-                });
-
-                // If upload successful, remove from local storage
-                await StorageUtils.deletePayment(payment.id);
-                setLocalPayments(prev => {
-                  const next = new Set(prev);
-                  next.delete(payment.id);
-                  return next;
-                });
-
-                return true;
-              } catch (error) {
-                console.error('Upload attempt failed:', error);
-                return false;
-              }
-            };
-
-            while (retryCount < maxRetries) {
-              if (await attemptUpload()) {
-                setRetryingPayments(prev => ({
-                  ...prev,
-                  [id]: false
-                }));
-                resolve(true);
-                return;
-              }
-              await new Promise(r => setTimeout(r, retryInterval));
-              retryCount++;
-            }
-
-            setFailedPayments(prev => new Set(prev).add(id));
-            setRetryingPayments(prev => ({
-              ...prev,
-              [id]: false
-            }));
-            resolve(false);
-          })
-        );
-
-        await Promise.all(retryPromises);
-      }
-
-      // After all retries, reload all payments
-      const finalOnlineReceipts = await APIService.getPayments();
-      const finalLocalReceipts = await StorageUtils.getStoredPayments();
-
-      // Combine all receipts, preferring online versions
-      const onlineIds = new Set(finalOnlineReceipts.map(p => p.id));
-      const uniqueLocalReceipts = finalLocalReceipts.filter(p => !onlineIds.has(p.id));
-      const allReceipts = [...finalOnlineReceipts, ...uniqueLocalReceipts];
+      // Combine receipts without retrying uploads
+      const allReceipts = [
+        ...onlineReceipts,
+        ...localReceipts.filter(receipt => !onlineReceiptIds.has(receipt.id))
+      ];
 
       const validReceipts = allReceipts.filter(receipt =>
         receipt &&
@@ -266,16 +152,29 @@ const OverallPayment: React.FC = () => {
     setIsBalanceVisible(!isBalanceVisible);
   };
 
-  const handlePaymentPress = (payment: Payment) => {
+  const handlePaymentPress = async (payment: Payment) => {
+    // Check if the payment is saved locally
+    const isLocal = localPayments.has(payment.id);
+
+    if (isLocal) {
+      // Show a toast or alert informing the user that local payments can't be edited
+      Toast.show({
+        type: 'info',
+        text1: 'Cannot Edit Local Payment',
+        text2: 'Please upload this payment to the server first before editing.',
+        position: 'bottom',
+      });
+      return;
+    }
+
     console.log('Payment being passed:', payment);
     try {
-      // Clear any existing params before navigation
       router.push({
         pathname: "/(tabs)/standard-input",
         params: {
           existingPayment: JSON.stringify({
             ...payment,
-            timestamp: Date.now() // Add timestamp to force param refresh
+            timestamp: Date.now()
           })
         }
       });
@@ -378,7 +277,7 @@ const OverallPayment: React.FC = () => {
                   return next;
                 });
                 // Load local receipts first
-                await loadLocalReceipts();
+                await loadReceipts();
                 // Then load API receipts
                 await loadApiReceipts();
               } else {
@@ -474,26 +373,41 @@ const OverallPayment: React.FC = () => {
   };
 
   const handlePaymentUpload = async (payment: Payment) => {
+    // Check if payment is already being uploaded
+    if (uploadingPayments.current.has(payment.id)) {
+      Toast.show({
+        type: 'info',
+        text1: 'Upload in Progress',
+        text2: 'Please wait for the current upload to complete'
+      });
+      return;
+    }
+
     Alert.alert(
       "Upload Payment",
       "Do you want to upload this locally saved payment to the server?",
       [
-        {
-          text: "Cancel",
-          style: "cancel"
-        },
+        { text: "Cancel", style: "cancel" },
         {
           text: "Upload",
           onPress: async () => {
             try {
-              // Show loading toast
+              // Mark payment as uploading
+              uploadingPayments.current.add(payment.id);
+
+              setRetryingPayments(prev => ({
+                ...prev,
+                [payment.id]: true
+              }));
+
               Toast.show({
                 type: 'info',
                 text1: 'Uploading...',
                 text2: 'Please wait'
               });
 
-              await APIService.savePayment({
+              // Single POST request
+              const response = await APIService.savePayment({
                 title: payment.title,
                 whoPaid: payment.whoPaid,
                 amount: payment.amount,
@@ -501,27 +415,55 @@ const OverallPayment: React.FC = () => {
                 paymentDatetime: payment.paymentDatetime
               });
 
-              // Remove from local storage
-              await StorageUtils.removePendingUpload(payment.id);
-              setLocalPayments(prev => {
+              // Only proceed if we got a successful response
+              if (response) {
+                // Remove from local storage
+                await StorageUtils.deletePayment(payment.id);
+
+                // Update UI state
+                setLocalPayments(prev => {
+                  const next = new Set(prev);
+                  next.delete(payment.id);
+                  return next;
+                });
+
+                setFailedPayments(prev => {
+                  const next = new Set(prev);
+                  next.delete(payment.id);
+                  return next;
+                });
+
+                Toast.show({
+                  type: 'success',
+                  text1: 'Success',
+                  text2: 'Payment uploaded successfully'
+                });
+
+                // Reload payments after successful upload
+                await loadReceipts();
+                await loadApiReceipts();
+              }
+            } catch (error) {
+              console.error('Error uploading payment:', error);
+
+              setFailedPayments(prev => {
                 const next = new Set(prev);
-                next.delete(payment.id);
+                next.add(payment.id);
                 return next;
               });
 
-              Toast.show({
-                type: 'success',
-                text1: 'Success',
-                text2: 'Payment uploaded successfully'
-              });
-              loadReceipts();
-            } catch (error) {
-              console.error('Error uploading payment:', error);
               Toast.show({
                 type: 'error',
                 text1: 'Error',
                 text2: 'Failed to upload payment. Please try again later.'
               });
+            } finally {
+              // Clean up
+              uploadingPayments.current.delete(payment.id);
+              setRetryingPayments(prev => ({
+                ...prev,
+                [payment.id]: false
+              }));
             }
           }
         }
@@ -529,10 +471,18 @@ const OverallPayment: React.FC = () => {
     );
   };
 
+
   const renderReceiptItem = useCallback(({ item }: { item: Payment }) => {
     const isLocal = localPayments.has(item.id);
     const isRetrying = retryingPayments[item.id];
     const hasFailed = failedPayments.has(item.id);
+
+    console.log(`Payment ${item.id} status:`, {
+      isLocal,
+      isRetrying,
+      hasFailed,
+      retryingPayments: retryingPayments[item.id]
+    });
 
     const handlePress = () => {
       if (isLocal && hasFailed) {
@@ -570,11 +520,17 @@ const OverallPayment: React.FC = () => {
             {isLocal && (
               <View style={[styles.warningIcon, { width: 24, height: 24 }]}>
                 {isRetrying ? (
-                  <ActivityIndicator size="small" color="#FFA500" />
+                  // Modified loading indicator
+                  <ActivityIndicator
+                    size="small"
+                    color="#FFA500"
+                    animating={true} // Explicitly set animating
+                  />
                 ) : hasFailed ? (
                   <Ionicons name="warning-outline" size={20} color="#FFA500" />
                 ) : (
-                  <ActivityIndicator size="small" color="#0000ff" />
+                  // Local but not yet retried
+                  <Ionicons name="cloud-upload-outline" size={20} color="#0000ff" />
                 )}
               </View>
             )}
