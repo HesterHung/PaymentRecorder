@@ -333,28 +333,41 @@ const InputScreen: React.FC = () => {
           // Set retry status
           await StorageUtils.setRetryStatus(localPayment.id, true);
 
-          // Single retry attempt after 1 second
+          // Single retry attempt after 2 seconds
           setTimeout(async () => {
             try {
-              await APIService.savePayment(paymentData, true);
+              await APIService.savePayment(paymentData, 10000);
               // If successful, remove from local storage
               await StorageUtils.deletePayment(localPayment.id);
               await StorageUtils.setRetryStatus(localPayment.id, false);
+              // Added toast when retry upload is successful
+              Toast.show({
+                type: 'success',
+                text1: 'Retry Upload Success',
+                text2: 'Payment uploaded successfully via retry.',
+                position: 'bottom',
+              });
             } catch (retryError) {
               console.error('Retry upload failed:', retryError);
+              Toast.show({
+                type: 'error',
+                text1: 'Retry Upload Failed',
+                text2: 'Failed to upload payment on retry. Please try again later.',
+                position: 'bottom',
+              });
               await StorageUtils.setRetryStatus(localPayment.id, false);
             }
-          }, 1000);
+          }, 2000);
         }
       }
 
       // Show appropriate toast message
       Toast.show({
         type: uploadSuccess ? 'success' : 'info',
-        text1: uploadSuccess ? 'Success' : 'Offline Mode',
+        text1: uploadSuccess ? 'Success' : 'Cannot Connect To Server',
         text2: uploadSuccess
           ? 'Payment uploaded successfully'
-          : 'Could not connect to server. Payment saved locally.',
+          : 'Payment saved locally. Attempt re-uploading...',
         position: 'bottom',
       });
 

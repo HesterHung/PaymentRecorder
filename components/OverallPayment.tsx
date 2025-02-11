@@ -41,15 +41,21 @@ const OverallPayment: React.FC = () => {
     const checkRetryStatus = async () => {
       if (!isMounted) return;
 
-      const status = await StorageUtils.getRetryStatus();
-      setRetryingPayments(status);
+      const newStatus = await StorageUtils.getRetryStatus();
+      setRetryingPayments(prevStatus => {
+        // Only update if the status has actually changed
+        if (JSON.stringify(prevStatus) !== JSON.stringify(newStatus)) {
+          return newStatus;
+        }
+        return prevStatus;
+      });
     };
 
     // Check initially
     checkRetryStatus();
 
-    // Set up interval to check periodically
-    const intervalId = setInterval(checkRetryStatus, 500);
+    // Optionally, increase the interval or debounce updates
+    const intervalId = setInterval(checkRetryStatus, 2000);
 
     return () => {
       isMounted = false;
@@ -314,8 +320,9 @@ const OverallPayment: React.FC = () => {
   // Update handleLongPress:
 
   const handleLongPress = async (payment: Payment) => {
-    const isLocal = (await StorageUtils.getStoredPayments())
-      .some(p => p.id === payment.id);
+    console.log('Long press detected for payment:', payment.id);
+
+    const isLocal = localPayments.has(payment.id); // Changed from checking stored payments to using localPayments state
 
     Alert.alert(
       "Delete Payment",
@@ -495,6 +502,8 @@ const OverallPayment: React.FC = () => {
   };
 
   const renderReceiptItem = useCallback(({ item }: { item: Payment }) => {
+    console.log('Rendering payment item:', item.id, 'Is Local:', localPayments.has(item.id));
+
     const isLocal = localPayments.has(item.id);
     const isRetrying = retryingPayments[item.id];
 
@@ -522,7 +531,7 @@ const OverallPayment: React.FC = () => {
           styles.paymentItem,
           isLocal && styles.localPaymentItem
         ]}
-        onPress={handlePress}
+        onPress={() => isLocal ? handlePaymentUpload(item) : handlePaymentPress(item)}
         onLongPress={() => handleLongPress(item)}
         delayLongPress={500}
         activeOpacity={0.7}
@@ -589,7 +598,7 @@ const OverallPayment: React.FC = () => {
         </View>
       </TouchableOpacity>
     );
-  }, [localPayments, retryingPayments, users, handleLongPress, handlePaymentPress, handlePaymentUpload]);
+  }, [localPayments, retryingPayments, users, handleLongPress, handlePaymentUpload]);
 
 
 
@@ -666,7 +675,7 @@ const OverallPayment: React.FC = () => {
           <TouchableOpacity onPress={toggleBalanceVisibility}>
             <Ionicons
               name={isBalanceVisible ? "eye-outline" : "eye-off-outline"}
-              size={24}
+              size={32}
               color="#666" />
           </TouchableOpacity>
         </View>
