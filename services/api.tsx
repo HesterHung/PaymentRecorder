@@ -38,9 +38,9 @@ export class APIService {
         const endpoint = `${this.BASE_URL}/records`;
         console.log('Attempting to save to:', endpoint);
 
-        // Original POST request
+        // Use 10 second timeout (10000 milliseconds)
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 1);
+        const timeoutId = setTimeout(() => controller.abort(), 10); // Changed from 1 to 10000
 
         try {
             console.log('Sending POST request with payload:', payment);
@@ -54,7 +54,7 @@ export class APIService {
                 signal: controller.signal
             });
 
-            clearTimeout(timeoutId);
+            clearTimeout(timeoutId); // Clear the timeout if request completes
 
             console.log('POST response status:', response.status);
             console.log('POST response headers:', [...response.headers.entries()]);
@@ -65,18 +65,25 @@ export class APIService {
                 throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
             }
 
-            return await response.json();
+            const responseData = await response.json();
+            console.log('Success response:', responseData);
+            return responseData;
+
         } catch (error: unknown) {
             if (error instanceof Error) {
                 if (error.name === 'AbortError') {
-                    throw new Error('Request timeout');
+                    console.error('Request timed out after 10 seconds');
+                    throw new Error('Request timed out after 10 seconds');
                 }
                 console.error('Full error details:', error);
                 throw error;
             }
             throw new Error('Unknown error occurred');
+        } finally {
+            clearTimeout(timeoutId); // Ensure timeout is cleared in all cases
         }
     }
+
     static async getPayments(): Promise<Payment[]> {
         try {
             const response = await fetch(`${this.BASE_URL}/records`);
@@ -131,7 +138,7 @@ export class APIService {
     static async updatePayment(id: string, payment: Omit<Payment, 'id'>): Promise<void> {
         // Fix 1: Use the BASE_URL constant
         const endpoint = `${this.BASE_URL}/records/${id}`;
-        
+
         try {
             // Fix 2: Send the complete payment data
             const response = await fetch(endpoint, {
@@ -149,7 +156,7 @@ export class APIService {
                     description: "Changed payment details"
                 }),
             });
-    
+
             // Fix 3: Better error handling
             if (!response.ok) {
                 const errorText = await response.text();
@@ -165,8 +172,8 @@ export class APIService {
             throw error;
         }
     }
-    
-    
+
+
 }
 
 export default APIService;

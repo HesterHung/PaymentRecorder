@@ -288,20 +288,20 @@ const InputScreen: React.FC = () => {
   }, [params.existingPayment]);
 
   async function handleSubmit(event: GestureResponderEvent): Promise<void> {
-    if (isSubmitting) return; // Prevent multiple submissions
+    if (isSubmitting) return;
     setIsSubmitting(true);
-  
+
     try {
       const numericAmount = amountType === 'total'
         ? parseFloat(totalAmount)
         : parseFloat(specificAmount);
-  
+
       if (!whoPaid || !numericAmount || numericAmount <= 0) {
         setIsSubmitting(false);
         Alert.alert('Hey!', 'Please fill in the $$$');
         return;
       }
-  
+
       const paymentData = {
         title: title || 'Untitled',
         whoPaid,
@@ -309,38 +309,48 @@ const InputScreen: React.FC = () => {
         amountType: amountType,
         paymentDatetime: date.getTime(),
       };
-  
+
+      let uploadSuccess = false;
+
+      // First attempt
       try {
-        // Try sending the payment to the API.
-        if (existingPayment?.id) {
-          await APIService.updatePayment(existingPayment.id, paymentData);
-          Toast.show({
-            type: 'success',
-            text1: 'Success',
-            text2: 'Payment updated successfully',
-            position: 'bottom',
-          });
-        } else {
-          await APIService.savePayment(paymentData);
-          Toast.show({
-            type: 'success',
-            text1: 'Success',
-            text2: 'Payment uploaded successfully',
-            position: 'bottom',
-          });
-        }
+        await APIService.savePayment(paymentData);
+        uploadSuccess = true;
       } catch (error) {
-        // If the API call fails, assume offline.
-        console.error('API call failed, saving payment locally:', error);
+        console.error('First upload attempt failed:', error);
+        // Save locally first
         await StorageUtils.savePayment(paymentData);
-        Toast.show({
-          type: 'info',
-          text1: 'Offline Mode',
-          text2: 'Could not connect to server. Payment saved locally.',
-          position: 'bottom',
-        });
+
+        // Single retry attempt after 1 second
+        setTimeout(async () => {
+          try {
+            await APIService.savePayment(paymentData);
+            // If successful, remove from local storage
+            const payments = await StorageUtils.getStoredPayments();
+            const payment = payments.find(p =>
+              p.title === paymentData.title &&
+              p.paymentDatetime === paymentData.paymentDatetime
+            );
+            if (payment) {
+              await StorageUtils.deletePayment(payment.id);
+            }
+          } catch (retryError) {
+            console.error('Retry upload failed:', retryError);
+            // Leave in local storage for manual retry
+          }
+        }, 1000);
       }
-  
+
+      // Show appropriate toast message
+      Toast.show({
+        type: uploadSuccess ? 'success' : 'info',
+        text1: uploadSuccess ? 'Success' : 'Offline Mode',
+        text2: uploadSuccess
+          ? 'Payment uploaded successfully'
+          : 'Could not connect to server. Payment saved locally.',
+        position: 'bottom',
+      });
+
       resetForm();
       router.push("/(tabs)/overall-payment");
     } catch (error) {
@@ -355,7 +365,7 @@ const InputScreen: React.FC = () => {
       setIsSubmitting(false);
     }
   }
-
+  
   return (
     <View style={styles.pageContainer}>
       <View style={styles.header}>
@@ -451,9 +461,9 @@ const InputScreen: React.FC = () => {
                     styles.payerCircle,
                     whoPaid === payer
                       ? {
-                          backgroundColor: USER_COLORS[users.indexOf(payer)],
-                          borderColor: USER_COLORS[users.indexOf(payer)]
-                        }
+                        backgroundColor: USER_COLORS[users.indexOf(payer)],
+                        borderColor: USER_COLORS[users.indexOf(payer)]
+                      }
                       : styles.inactivePayerCircle
                   ]}>
                     <Ionicons
