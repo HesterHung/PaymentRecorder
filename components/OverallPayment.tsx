@@ -94,6 +94,35 @@ const OverallPayment: React.FC = () => {
     }));
   };
 
+  const renderLocalPayments = () => {
+    if (!localPayments.size) return null;
+
+    const localPaymentItems = groupedPayments
+      .flatMap(group => group.data)
+      .filter(payment => localPayments.has(payment.id));
+
+    if (localPaymentItems.length === 0) return null;
+
+    return (
+      <View style={styles.localPaymentsSection}>
+        <View style={styles.localPaymentsHeader}>
+          <View style={styles.headerLeftContent}>
+            <Ionicons name="cloud-upload-outline" size={24} color="#666" />
+            <Text style={styles.localPaymentsTitle}>Pending Uploads</Text>
+          </View>
+          <Text style={styles.pendingCount}>
+            {localPaymentItems.length} {localPaymentItems.length === 1 ? 'item' : 'items'}
+          </Text>
+        </View>
+        {localPaymentItems.map(payment => (
+          <View key={payment.id} style={styles.localPaymentWrapper}>
+            {renderReceiptItem({ item: payment })}
+          </View>
+        ))}
+      </View>
+    );
+  };
+
   const loadLocalReceipts = async () => {
     setIsLocalLoading(true);
     try {
@@ -535,9 +564,11 @@ const OverallPayment: React.FC = () => {
     const hasFailed = failedPayments.has(item.id);
 
     const handlePress = () => {
-      if (isLocal && hasFailed) {
+      if (isLocal) {
+        // For local payments, trigger upload instead of navigation
         handlePaymentUpload(item);
       } else {
+        // Only navigate to input screen for online payments
         handlePaymentPress(item);
       }
     };
@@ -556,7 +587,10 @@ const OverallPayment: React.FC = () => {
 
     return (
       <TouchableOpacity
-        style={styles.paymentItem}
+        style={[
+          styles.paymentItem,
+          isLocal && styles.localPaymentItem // Add different styling for local items if desired
+        ]}
         onPress={handlePress}
         onLongPress={() => handleLongPress(item)}
         delayLongPress={500}
@@ -594,7 +628,6 @@ const OverallPayment: React.FC = () => {
           </View>
         </View>
 
-        {/* Rest of the component remains the same */}
         <View style={styles.paymentDetails}>
           <View style={styles.paymentInfo}>
             <Text style={styles.paymentTitle}>{item.title || 'Untitled'}</Text>
@@ -614,6 +647,15 @@ const OverallPayment: React.FC = () => {
               </Text>
             </View>
           </View>
+          {isLocal && (
+            <TouchableOpacity
+              style={styles.uploadButton}
+              onPress={() => handlePaymentUpload(item)}
+            >
+              <Ionicons name="cloud-upload-outline" size={20} color="#666" />
+              <Text style={styles.uploadButtonText}>Upload</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </TouchableOpacity>
     );
@@ -621,10 +663,20 @@ const OverallPayment: React.FC = () => {
 
 
 
-
-
   const renderMonthSection = ({ item }: { item: GroupedPayments }) => {
     const isExpanded = expandedMonths[item.title] ?? true;
+
+    // Filter out local payments from the month's data
+    const onlinePayments = item.data.filter(payment => !localPayments.has(payment.id));
+
+    // Calculate the total amount for online payments only
+    const onlineTotal = onlinePayments.reduce((sum, payment) => {
+      const amount = payment.amountType === 'total' ? payment.amount / 2 : payment.amount;
+      return sum + (payment.whoPaid === users[0] ? -amount : amount);
+    }, 0);
+
+    // Don't render the month section if there are no online payments
+    if (onlinePayments.length === 0) return null;
 
     return (
       <View style={styles.monthSection}>
@@ -642,11 +694,11 @@ const OverallPayment: React.FC = () => {
           </View>
           <View style={styles.monthTotalContainer}>
             <Text style={styles.monthTotal}>
-              Total: {isBalanceVisible ? formatBalance(item.totalAmount) : '•••••'}
+              Total: {isBalanceVisible ? formatBalance(onlineTotal) : '•••••'}
             </Text>
             <Text style={styles.monthOwes}>
               {isBalanceVisible ? (
-                <BalanceSummaryText balance={item.totalAmount} />
+                <BalanceSummaryText balance={onlineTotal} />
               ) : '***'}
             </Text>
           </View>
@@ -654,7 +706,7 @@ const OverallPayment: React.FC = () => {
 
         {isExpanded && (
           <FlatList
-            data={item.data}
+            data={onlinePayments}
             renderItem={renderReceiptItem}
             keyExtractor={receipt => receipt.id}
             scrollEnabled={false}
@@ -664,6 +716,15 @@ const OverallPayment: React.FC = () => {
     );
   };
 
+  const calculateOnlineTotal = () => {
+    return groupedPayments
+      .flatMap(group => group.data)
+      .filter(payment => !localPayments.has(payment.id))
+      .reduce((sum, payment) => {
+        const amount = payment.amountType === 'total' ? payment.amount / 2 : payment.amount;
+        return sum + (payment.whoPaid === users[0] ? -amount : amount);
+      }, 0);
+  };
 
   return (
     <View style={styles.container}>
@@ -700,6 +761,7 @@ const OverallPayment: React.FC = () => {
       ) : (
         <FlatList
           data={groupedPayments}
+          ListHeaderComponent={renderLocalPayments}
           renderItem={renderMonthSection}
           keyExtractor={item => item.title}
           contentContainerStyle={styles.listContainer}
@@ -907,6 +969,53 @@ const styles = StyleSheet.create({
     marginTop: 8,
     color: '#666',
     fontSize: 14,
+  },
+  localPaymentsSection: {
+    backgroundColor: '#fff8dc',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#ffd700',
+  },
+  localPaymentsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  headerLeftContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  localPaymentsTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#666',
+  },
+  pendingCount: {
+    fontSize: 14,
+    color: '#666',
+    fontStyle: 'italic',
+  },
+  localPaymentWrapper: {
+    marginBottom: 8,
+  },
+  localPaymentItem: {
+  },
+  uploadButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: '#f0f0f0',
+  },
+  uploadButtonText: {
+    fontSize: 12,
+    color: '#666',
+    fontWeight: '500',
   },
 });
 
