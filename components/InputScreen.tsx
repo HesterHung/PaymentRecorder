@@ -11,6 +11,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PRIMARY_COLOR, USER_COLORS } from '@/constants/Colors';
 import AmountInput from './AmountInput';
 import APIService from '@/services/api';
+import EventEmitter from 'react-native/Libraries/vendor/emitter/EventEmitter';
 
 const InputScreen: React.FC = () => {
   const params = useLocalSearchParams();
@@ -321,24 +322,30 @@ const InputScreen: React.FC = () => {
         // Save locally first
         await StorageUtils.savePayment(paymentData);
 
-        // Single retry attempt after 1 second
-        setTimeout(async () => {
-          try {
-            await APIService.savePayment(paymentData);
-            // If successful, remove from local storage
-            const payments = await StorageUtils.getStoredPayments();
-            const payment = payments.find(p =>
-              p.title === paymentData.title &&
-              p.paymentDatetime === paymentData.paymentDatetime
-            );
-            if (payment) {
-              await StorageUtils.deletePayment(payment.id);
+        // Get the payment ID from local storage
+        const payments = await StorageUtils.getStoredPayments();
+        const localPayment = payments.find(p =>
+          p.title === paymentData.title &&
+          p.paymentDatetime === paymentData.paymentDatetime
+        );
+
+        if (localPayment?.id) {
+          // Set retry status
+          await StorageUtils.setRetryStatus(localPayment.id, true);
+
+          // Single retry attempt after 1 second
+          setTimeout(async () => {
+            try {
+              await APIService.savePayment(paymentData, true);
+              // If successful, remove from local storage
+              await StorageUtils.deletePayment(localPayment.id);
+              await StorageUtils.setRetryStatus(localPayment.id, false);
+            } catch (retryError) {
+              console.error('Retry upload failed:', retryError);
+              await StorageUtils.setRetryStatus(localPayment.id, false);
             }
-          } catch (retryError) {
-            console.error('Retry upload failed:', retryError);
-            // Leave in local storage for manual retry
-          }
-        }, 1000);
+          }, 1000);
+        }
       }
 
       // Show appropriate toast message
@@ -365,7 +372,7 @@ const InputScreen: React.FC = () => {
       setIsSubmitting(false);
     }
   }
-  
+
   return (
     <View style={styles.pageContainer}>
       <View style={styles.header}>

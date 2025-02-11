@@ -7,8 +7,45 @@ const STORAGE_KEYS = {
   PAYMENTS: 'payments',
   PENDING_UPLOADS: 'pending_uploads',
 };
+const RETRY_STATUS_KEY = '@retry_status';
 
 export class StorageUtils {
+
+
+  static async setRetryStatus(paymentId: string, isRetrying: boolean) {
+    try {
+      const currentStatus = await AsyncStorage.getItem(RETRY_STATUS_KEY);
+      const retryStatus = currentStatus ? JSON.parse(currentStatus) : {};
+
+      if (isRetrying) {
+        retryStatus[paymentId] = true;
+      } else {
+        delete retryStatus[paymentId];
+      }
+
+      await AsyncStorage.setItem(RETRY_STATUS_KEY, JSON.stringify(retryStatus));
+    } catch (error) {
+      console.error('Error setting retry status:', error);
+    }
+  }
+
+  static async getRetryStatus(): Promise<{ [key: string]: boolean }> {
+    try {
+      const status = await AsyncStorage.getItem(RETRY_STATUS_KEY);
+      return status ? JSON.parse(status) : {};
+    } catch (error) {
+      console.error('Error getting retry status:', error);
+      return {};
+    }
+  }
+
+  static async clearRetryStatus() {
+    try {
+      await AsyncStorage.removeItem(RETRY_STATUS_KEY);
+    } catch (error) {
+      console.error('Error clearing retry status:', error);
+    }
+  }
 
   static async clearAllPayments(): Promise<void> {
     try {

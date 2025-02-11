@@ -33,6 +33,29 @@ const OverallPayment: React.FC = () => {
   const [localPayments, setLocalPayments] = useState<Set<string>>(new Set());
   const [isApiLoading, setIsApiLoading] = useState(false);
   const [isLocalLoading, setIsLocalLoading] = useState(false);
+  const [retryingPayments, setRetryingPayments] = useState<{ [key: string]: boolean }>({});
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const checkRetryStatus = async () => {
+      if (!isMounted) return;
+
+      const status = await StorageUtils.getRetryStatus();
+      setRetryingPayments(status);
+    };
+
+    // Check initially
+    checkRetryStatus();
+
+    // Set up interval to check periodically
+    const intervalId = setInterval(checkRetryStatus, 500);
+
+    return () => {
+      isMounted = false;
+      clearInterval(intervalId);
+    };
+  }, []);
 
   useEffect(() => {
     const fetchLocalPayments = async () => {
@@ -473,12 +496,11 @@ const OverallPayment: React.FC = () => {
 
   const renderReceiptItem = useCallback(({ item }: { item: Payment }) => {
     const isLocal = localPayments.has(item.id);
+    const isRetrying = retryingPayments[item.id];
 
     const handlePress = () => {
       if (isLocal) {
         handlePaymentUpload(item);
-      } else {
-        handlePaymentPress(item);
       }
     };
 
@@ -503,6 +525,7 @@ const OverallPayment: React.FC = () => {
         onPress={handlePress}
         onLongPress={() => handleLongPress(item)}
         delayLongPress={500}
+        activeOpacity={0.7}
       >
         <View style={styles.paymentHeader}>
           <View style={styles.dateTimeContainer}>
@@ -512,7 +535,11 @@ const OverallPayment: React.FC = () => {
           <View style={styles.amountSection}>
             {isLocal && (
               <View style={[styles.warningIcon, { width: 24, height: 24 }]}>
-                <Ionicons name="cloud-upload-outline" size={20} color="#0000ff" />
+                {isRetrying ? (
+                  <ActivityIndicator size="small" color="#0000ff" />
+                ) : (
+                  <Ionicons name="cloud-upload-outline" size={20} color="#0000ff" />
+                )}
               </View>
             )}
             <View style={[
@@ -562,7 +589,7 @@ const OverallPayment: React.FC = () => {
         </View>
       </TouchableOpacity>
     );
-  }, [localPayments, users]);
+  }, [localPayments, retryingPayments, users, handleLongPress, handlePaymentPress, handlePaymentUpload]);
 
 
 

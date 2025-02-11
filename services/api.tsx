@@ -33,7 +33,7 @@ interface ApiResponse {
 
 export class APIService {
     private static BASE_URL = 'https://tr-cl4p.onrender.com/api';
-    private static DELAY_MS = 12000;
+    private static DELAY_MS = 10000;
 
     private static async simulateDelay(delay: Boolean): Promise<void> {
         if (delay) {
