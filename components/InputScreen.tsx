@@ -299,13 +299,12 @@ const InputScreen: React.FC = () => {
       }
 
       // Convert 'specify' to 'specify' when sending to the API
-      const apiAmountType = amountType === 'total' ? 'specify' : amountType;
 
       const paymentData = {
         title: title || 'Untitled',
         whoPaid,
         amount: numericAmount,
-        amountType: apiAmountType, // Use the converted amount type
+        amountType: amountType, // Use the converted amount type
         paymentDatetime: date.getTime(),
       };
 

@@ -100,7 +100,7 @@ export class APIService {
                 title: record.title || '',
                 whoPaid: record.whoPaid || '',
                 amount: Number(record.amount) || 0,
-                amountType: record.amountType || 'specify',
+                amountType: record.amountType || '',
                 paymentDatetime: Number(record.paymentDatetime) || Date.now()
             }));
 
