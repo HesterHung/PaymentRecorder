@@ -40,7 +40,7 @@ export class APIService {
 
         // Original POST request
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        const timeoutId = setTimeout(() => controller.abort(), 3000);
 
         try {
             console.log('Sending POST request with payload:', payment);

@@ -1,7 +1,7 @@
 // utils/storage.ts
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Payment } from '../types/payment';
+import { CONSTANTS, Payment } from '../types/payment';
 
 const STORAGE_KEYS = {
   PAYMENTS: 'payments',
@@ -9,6 +9,18 @@ const STORAGE_KEYS = {
 };
 
 export class StorageUtils {
+
+  static async clearAllPayments(): Promise<void> {
+    try {
+      await Promise.all([
+        AsyncStorage.removeItem(CONSTANTS.STORAGE_KEYS.PAYMENTS),
+        AsyncStorage.removeItem(CONSTANTS.STORAGE_KEYS.PENDING_UPLOADS)
+      ]);
+    } catch (error) {
+      console.error('Error clearing all payments:', error);
+      throw error;
+    }
+  }
 
   static async savePayment(payment: Omit<Payment, 'id'>): Promise<void> {
     try {

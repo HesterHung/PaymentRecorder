@@ -290,18 +290,18 @@ const InputScreen: React.FC = () => {
   async function handleSubmit(event: GestureResponderEvent): Promise<void> {
     if (isSubmitting) return; // Prevent multiple submissions
     setIsSubmitting(true);
-
+  
     try {
       const numericAmount = amountType === 'total'
         ? parseFloat(totalAmount)
         : parseFloat(specificAmount);
-
+  
       if (!whoPaid || !numericAmount || numericAmount <= 0) {
         setIsSubmitting(false);
         Alert.alert('Hey!', 'Please fill in the $$$');
         return;
       }
-
+  
       const paymentData = {
         title: title || 'Untitled',
         whoPaid,
@@ -309,8 +309,9 @@ const InputScreen: React.FC = () => {
         amountType: amountType,
         paymentDatetime: date.getTime(),
       };
-
+  
       try {
+        // Try sending the payment to the API.
         if (existingPayment?.id) {
           await APIService.updatePayment(existingPayment.id, paymentData);
           Toast.show({
@@ -324,35 +325,24 @@ const InputScreen: React.FC = () => {
           Toast.show({
             type: 'success',
             text1: 'Success',
-            text2: 'Payment created successfully',
+            text2: 'Payment uploaded successfully',
             position: 'bottom',
           });
         }
-
-        resetForm();
-        router.push("/(tabs)/overall-payment");
       } catch (error) {
-        console.error('API Error:', error);
-
-        if (existingPayment?.id) {
-          Toast.show({
-            type: 'error',
-            text1: 'Update Failed',
-            text2: 'Please try again later.',
-            position: 'bottom',
-          });
-        } else {
-          await StorageUtils.savePayment(paymentData);
-          Toast.show({
-            type: 'error',
-            text1: 'Saved Locally',
-            text2: 'Could not connect to server. Payment saved locally.',
-            position: 'bottom',
-          });
-          resetForm();
-          router.push("/(tabs)/overall-payment");
-        }
+        // If the API call fails, assume offline.
+        console.error('API call failed, saving payment locally:', error);
+        await StorageUtils.savePayment(paymentData);
+        Toast.show({
+          type: 'info',
+          text1: 'Offline Mode',
+          text2: 'Could not connect to server. Payment saved locally.',
+          position: 'bottom',
+        });
       }
+  
+      resetForm();
+      router.push("/(tabs)/overall-payment");
     } catch (error) {
       console.error('Submit Error:', error);
       Toast.show({

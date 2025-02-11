@@ -11,6 +11,7 @@ import { BalanceSummaryText, calculatePaymentBalance, formatBalance } from '@/ut
 import { USER_COLORS } from '@/constants/Colors';
 import Toast from 'react-native-toast-message';
 import APIService from '@/services/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width } = Dimensions.get('window');
 const peopleNumber = 2;
@@ -30,7 +31,10 @@ const OverallPayment: React.FC = () => {
   const [users, setUsers] = useState<[string, string]>(CONSTANTS.PAYERS);
   const [isLoading, setIsLoading] = useState(false);
   const [localPayments, setLocalPayments] = useState<Set<string>>(new Set());
-
+  const [isApiLoading, setIsApiLoading] = useState(false);
+  const [isLocalLoading, setIsLocalLoading] = useState(false);
+  const [retryingPayments, setRetryingPayments] = useState<{ [key: string]: boolean }>({});
+  const [failedPayments, setFailedPayments] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const fetchLocalPayments = async () => {
@@ -67,9 +71,17 @@ const OverallPayment: React.FC = () => {
 
   useFocusEffect(
     React.useCallback(() => {
-      setIsLoading(true);
-      loadReceipts()
-        .finally(() => setIsLoading(false));
+      const loadData = async () => {
+        try {
+          // Load local data first
+          await loadLocalReceipts();
+          // Then load API data
+          await loadApiReceipts();
+        } catch (error) {
+          console.error('Error in loadData:', error);
+        }
+      };
+      loadData();
     }, [])
   );
 
@@ -82,7 +94,173 @@ const OverallPayment: React.FC = () => {
     }));
   };
 
+  const loadLocalReceipts = async () => {
+    setIsLocalLoading(true);
+    try {
+      const localReceipts = await StorageUtils.getStoredPayments();
+      console.log('Local receipts loaded:', localReceipts); // Debug log
 
+      if (localReceipts && localReceipts.length > 0) {
+        setLocalPayments(new Set(localReceipts.map(p => p.id)));
+        const localSummary = calculatePaymentBalance(localReceipts);
+
+        const groupedArray = Object.entries(localSummary.monthlyBalances)
+          .map(([title, data]) => ({
+            title,
+            data: data.payments.sort((a, b) => b.paymentDatetime - a.paymentDatetime),
+            totalAmount: data.balance
+          }))
+          .sort((a, b) => {
+            const dateA = new Date(a.data[0]?.paymentDatetime || 0);
+            const dateB = new Date(b.data[0]?.paymentDatetime || 0);
+            return dateB.getTime() - dateA.getTime();
+          });
+
+        setTotalBalance(localSummary.totalBalance);
+        setGroupedPayments(groupedArray);
+      }
+    } catch (error) {
+      console.error('Error loading local receipts:', error);
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: 'Failed to load local payments'
+      });
+    } finally {
+      setIsLocalLoading(false);
+    }
+  };
+
+  const loadApiReceipts = async () => {
+    setIsApiLoading(true);
+    try {
+      const onlineReceipts = await APIService.getPayments();
+      const localReceipts = await StorageUtils.getStoredPayments();
+
+      // Create a map of online receipt IDs for faster lookup
+      const onlineReceiptIds = new Set(onlineReceipts.map(receipt => receipt.id));
+
+      // Create a map of local payment IDs that need retry
+      const localPaymentsToRetry = new Map();
+      localReceipts.forEach(payment => {
+        // Only retry if payment is local and not already on server
+        if (localPayments.has(payment.id) &&
+          !onlineReceiptIds.has(payment.id) &&
+          !failedPayments.has(payment.id)) {
+          localPaymentsToRetry.set(payment.id, payment);
+        }
+      });
+
+      // Start retry process for local payments
+      if (localPaymentsToRetry.size > 0) {
+        setRetryingPayments(prev => {
+          const next = { ...prev };
+          localPaymentsToRetry.forEach((_, id) => {
+            next[id] = true;
+          });
+          return next;
+        });
+
+        // Retry logic for each payment
+        const retryPromises = Array.from(localPaymentsToRetry.entries()).map(([id, payment]) =>
+          new Promise(async (resolve) => {
+            let retryCount = 0;
+            const maxRetries = 4;
+            const retryInterval = 5000;
+
+            const attemptUpload = async () => {
+              try {
+                await APIService.savePayment({
+                  title: payment.title,
+                  whoPaid: payment.whoPaid,
+                  amount: payment.amount,
+                  amountType: payment.amountType as 'total' | 'specify',
+                  paymentDatetime: payment.paymentDatetime
+                });
+
+                // If upload successful, remove from local storage
+                await StorageUtils.deletePayment(payment.id);
+                setLocalPayments(prev => {
+                  const next = new Set(prev);
+                  next.delete(payment.id);
+                  return next;
+                });
+
+                return true;
+              } catch (error) {
+                console.error('Upload attempt failed:', error);
+                return false;
+              }
+            };
+
+            while (retryCount < maxRetries) {
+              if (await attemptUpload()) {
+                setRetryingPayments(prev => ({
+                  ...prev,
+                  [id]: false
+                }));
+                resolve(true);
+                return;
+              }
+              await new Promise(r => setTimeout(r, retryInterval));
+              retryCount++;
+            }
+
+            setFailedPayments(prev => new Set(prev).add(id));
+            setRetryingPayments(prev => ({
+              ...prev,
+              [id]: false
+            }));
+            resolve(false);
+          })
+        );
+
+        await Promise.all(retryPromises);
+      }
+
+      // After all retries, reload all payments
+      const finalOnlineReceipts = await APIService.getPayments();
+      const finalLocalReceipts = await StorageUtils.getStoredPayments();
+
+      // Combine all receipts, preferring online versions
+      const onlineIds = new Set(finalOnlineReceipts.map(p => p.id));
+      const uniqueLocalReceipts = finalLocalReceipts.filter(p => !onlineIds.has(p.id));
+      const allReceipts = [...finalOnlineReceipts, ...uniqueLocalReceipts];
+
+      const validReceipts = allReceipts.filter(receipt =>
+        receipt &&
+        typeof receipt.amount === 'number' &&
+        typeof receipt.paymentDatetime === 'number'
+      );
+
+      const summary = calculatePaymentBalance(validReceipts);
+
+      const groupedArray = Object.entries(summary.monthlyBalances)
+        .map(([title, data]) => ({
+          title,
+          data: data.payments.sort((a, b) => b.paymentDatetime - a.paymentDatetime),
+          totalAmount: data.balance
+        }))
+        .sort((a, b) => {
+          const dateA = new Date(a.data[0]?.paymentDatetime || 0);
+          const dateB = new Date(b.data[0]?.paymentDatetime || 0);
+          return dateB.getTime() - dateA.getTime();
+        });
+
+      setTotalBalance(summary.totalBalance);
+      setGroupedPayments(groupedArray);
+
+    } catch (error) {
+      console.error('Error loading API receipts:', error);
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: 'Failed to load online payments'
+      });
+    } finally {
+      setIsApiLoading(false);
+    }
+  };
 
   const toggleBalanceVisibility = () => {
     setIsBalanceVisible(!isBalanceVisible);
@@ -193,21 +371,26 @@ const OverallPayment: React.FC = () => {
             try {
               if (isLocal) {
                 await StorageUtils.deletePayment(payment.id);
-                // Update local state immediately
+                // Update local state
                 setLocalPayments(prev => {
                   const next = new Set(prev);
                   next.delete(payment.id);
                   return next;
                 });
+                // Load local receipts first
+                await loadLocalReceipts();
+                // Then load API receipts
+                await loadApiReceipts();
               } else {
                 await APIService.deletePayment(payment.id);
+                await loadApiReceipts();
               }
+
               Toast.show({
                 type: 'success',
                 text1: 'Success',
                 text2: 'Payment deleted successfully'
               });
-              loadReceipts(); // Reload the list
             } catch (error) {
               console.error('Error deleting payment:', error);
               Toast.show({
@@ -236,15 +419,53 @@ const OverallPayment: React.FC = () => {
           style: "destructive",
           onPress: async () => {
             try {
-              //await StorageUtils.clearAllPayments();
-              Alert.alert("Success", "All payment records have been deleted.");
-              loadReceipts();
+              setIsLoading(true);
+              Toast.show({
+                type: 'info',
+                text1: 'Deleting all records...',
+                text2: 'Please wait'
+              });
+
+              // Get all payments
+              const [onlineReceipts, localReceipts] = await Promise.all([
+                APIService.getPayments(),
+                StorageUtils.getStoredPayments()
+              ]);
+
+              // Delete all online payments
+              const onlineDeletePromises = onlineReceipts.map(payment =>
+                APIService.deletePayment(payment.id)
+              );
+
+              // Delete all local payments and storage
+              await Promise.all([
+                ...onlineDeletePromises,
+                AsyncStorage.removeItem(CONSTANTS.STORAGE_KEYS.PAYMENTS),
+                StorageUtils.clearAllPayments() // Add this method to StorageUtils
+              ]);
+
+              // Reset states
+              setLocalPayments(new Set());
+              setFailedPayments(new Set());
+              setRetryingPayments({});
+              setGroupedPayments([]);
+              setTotalBalance(0);
+
+              Toast.show({
+                type: 'success',
+                text1: 'Success',
+                text2: 'All payment records have been deleted'
+              });
+
             } catch (error) {
               console.error('Error clearing payments:', error);
-              Alert.alert(
-                "Error",
-                "Failed to clear payments. Please try again."
-              );
+              Toast.show({
+                type: 'error',
+                text1: 'Error',
+                text2: 'Failed to delete all records. Please try again.'
+              });
+            } finally {
+              setIsLoading(false);
             }
           }
         }
@@ -310,9 +531,11 @@ const OverallPayment: React.FC = () => {
 
   const renderReceiptItem = useCallback(({ item }: { item: Payment }) => {
     const isLocal = localPayments.has(item.id);
+    const isRetrying = retryingPayments[item.id];
+    const hasFailed = failedPayments.has(item.id);
 
     const handlePress = () => {
-      if (isLocal) {
+      if (isLocal && hasFailed) {
         handlePaymentUpload(item);
       } else {
         handlePaymentPress(item);
@@ -341,20 +564,27 @@ const OverallPayment: React.FC = () => {
         <View style={styles.paymentHeader}>
           <View style={styles.dateTimeContainer}>
             <Text style={styles.paymentDate}>{formattedDate}</Text>
-            <Text style={styles.paymentTime}>
-              {formattedTime}
-            </Text>
+            <Text style={styles.paymentTime}>{formattedTime}</Text>
           </View>
           <View style={styles.amountSection}>
             {isLocal && (
-              <View style={styles.warningIcon}>
-                <Ionicons name="warning" size={16} color="#FFA500" />
+              <View style={[styles.warningIcon, { width: 24, height: 24 }]}>
+                {isRetrying ? (
+                  <ActivityIndicator size="small" color="#FFA500" />
+                ) : hasFailed ? (
+                  <Ionicons name="warning-outline" size={20} color="#FFA500" />
+                ) : (
+                  <ActivityIndicator size="small" color="#0000ff" />
+                )}
               </View>
             )}
             <View style={[
               styles.amountContainer,
               {
-                backgroundColor: item.whoPaid === users[0] ? USER_COLORS[0] : USER_COLORS[1]
+                backgroundColor: item.whoPaid === users[0] ? USER_COLORS[0] : USER_COLORS[1],
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 4
               }
             ]}>
               <Text style={styles.amountText}>
@@ -364,6 +594,7 @@ const OverallPayment: React.FC = () => {
           </View>
         </View>
 
+        {/* Rest of the component remains the same */}
         <View style={styles.paymentDetails}>
           <View style={styles.paymentInfo}>
             <Text style={styles.paymentTitle}>{item.title || 'Untitled'}</Text>
@@ -386,7 +617,7 @@ const OverallPayment: React.FC = () => {
         </View>
       </TouchableOpacity>
     );
-  }, [localPayments, users, handlePaymentPress, handleLongPress]);
+  }, [localPayments, retryingPayments, failedPayments, users]);
 
 
 
@@ -436,47 +667,52 @@ const OverallPayment: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      {isLoading ? (
-        <View style={[styles.container, styles.centerContent]}>
+      <View style={styles.balanceCard}>
+        <View style={styles.balanceHeader}>
+          <Text style={styles.balanceTitle}>Overall Balance</Text>
+          <TouchableOpacity onPress={toggleBalanceVisibility}>
+            <Ionicons
+              name={isBalanceVisible ? "eye-outline" : "eye-off-outline"}
+              size={24}
+              color="#666" />
+          </TouchableOpacity>
+        </View>
+        <Text style={styles.balanceAmount}>
+          {isBalanceVisible ? formatBalance(totalBalance) : '•••••'}
+        </Text>
+        <Text style={styles.balanceSubtitle}>
+          {isBalanceVisible ? <BalanceSummaryText balance={totalBalance} /> : '***'}
+        </Text>
+      </View>
+
+      <TouchableOpacity
+        style={styles.resetButton}
+        onPress={handleResetAll}
+      >
+        <Text style={styles.resetButtonText}>Reset All Records (Debug)</Text>
+      </TouchableOpacity>
+
+      {isLocalLoading ? (
+        <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#0000ff" />
+          <Text style={styles.loadingText}>Loading local payments...</Text>
         </View>
       ) : (
-        <>
-          <View style={styles.balanceCard}>
-            <View style={styles.balanceHeader}>
-              <Text style={styles.balanceTitle}>Overall Balance</Text>
-              <TouchableOpacity onPress={toggleBalanceVisibility}>
-                <Ionicons
-                  name={isBalanceVisible ? "eye-outline" : "eye-off-outline"}
-                  size={24}
-                  color="#666" />
-              </TouchableOpacity>
-            </View>
-            <Text style={styles.balanceAmount}>
-              {isBalanceVisible ? formatBalance(totalBalance) : '•••••'}
-            </Text>
-            <Text style={styles.balanceSubtitle}>
-              {isBalanceVisible ? <BalanceSummaryText balance={totalBalance} /> : '***'}
-            </Text>
-          </View>
-          <FlatList
-            data={groupedPayments}
-            renderItem={renderMonthSection}
-            keyExtractor={item => item.title}
-            contentContainerStyle={styles.listContainer} />
-          {/*
-          <TouchableOpacity
-            style={styles.resetButton}
-            onPress={handleResetAll}
-          >
-            <Text style={styles.resetButtonText}>Reset All Payments (DEBUG USE)</Text>
-          </TouchableOpacity>
-          */}
-
-        </>
-
+        <FlatList
+          data={groupedPayments}
+          renderItem={renderMonthSection}
+          keyExtractor={item => item.title}
+          contentContainerStyle={styles.listContainer}
+          ListFooterComponent={
+            isApiLoading ? (
+              <View style={styles.apiLoadingContainer}>
+                <ActivityIndicator size="small" color="#0000ff" />
+                <Text style={styles.apiLoadingText}>Loading online payments...</Text>
+              </View>
+            ) : null
+          }
+        />
       )}
-
     </View>
   );
 };
@@ -638,16 +874,39 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  amountSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
   warningIcon: {
     width: 24,
     height: 24,
     justifyContent: 'center',
     alignItems: 'center',
+    marginRight: 8,
+  },
+  amountSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingLeft: 4,
+  },
+  apiLoadingContainer: {
+    padding: 16,
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  apiLoadingText: {
+    color: '#666',
+    fontSize: 14,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 8,
+    color: '#666',
+    fontSize: 14,
   },
 });
 

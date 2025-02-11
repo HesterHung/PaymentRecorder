@@ -7,7 +7,8 @@ export const CONSTANTS = {
   AMOUNT_TYPES: ['total', 'specify'] as const,
   STORAGE_KEYS: {
     PAYMENTS: 'stored_payments',
-    USERS: 'users'
+    USERS: 'users',
+    PENDING_UPLOADS: 'pending_uploads'  // Add this line
   },
   // Default PAYERS array for immediate use
   PAYERS: ['Hester', 'Lok'] as PayerTuple,
@@ -16,8 +17,8 @@ export const CONSTANTS = {
     try {
       const storedUsers = await AsyncStorage.getItem('users');
       const users = storedUsers ? JSON.parse(storedUsers) : [];
-      return users.length >= 2 
-        ? [users[0], users[1]] as PayerTuple 
+      return users.length >= 2
+        ? [users[0], users[1]] as PayerTuple
         : CONSTANTS.PAYERS;
     } catch (error) {
       console.error('Error getting payers:', error);
