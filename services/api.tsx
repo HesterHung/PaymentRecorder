@@ -33,16 +33,25 @@ interface ApiResponse {
 
 export class APIService {
     private static BASE_URL = 'https://tr-cl4p.onrender.com/api';
+    private static DELAY_MS = 12000;
 
-    static async savePayment(payment: PaymentPayload): Promise<Response> {
+    private static async simulateDelay(delay: Boolean): Promise<void> {
+        if (delay) {
+            await new Promise(resolve => setTimeout(resolve, this.DELAY_MS));
+        }
+    }
+
+    static async savePayment(payment: PaymentPayload, delay: Boolean = false): Promise<Response> {
         const endpoint = `${this.BASE_URL}/records`;
         console.log('Attempting to save to:', endpoint);
 
         // Use 10 second timeout (10000 milliseconds)
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000); // Changed from 1 to 10000
+        const timeoutId = setTimeout(() => controller.abort(), 10); // Changed from 1 to 10000
 
         try {
+            await this.simulateDelay(delay);
+
             console.log('Sending POST request with payload:', payment);
             const response = await fetch(endpoint, {
                 method: 'POST',
