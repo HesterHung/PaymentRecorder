@@ -166,6 +166,9 @@ const OverallPayment: React.FC = () => {
       const onlineReceipts = await APIService.getPayments();
       const localReceipts = await StorageUtils.getStoredPayments();
 
+      const onlineSummary = calculatePaymentBalance(onlineReceipts);
+      setTotalBalance(onlineSummary.totalBalance);
+
       // Create a map of online receipt IDs for faster lookup
       const onlineReceiptIds = new Set(onlineReceipts.map(receipt => receipt.id));
 
@@ -262,9 +265,8 @@ const OverallPayment: React.FC = () => {
         typeof receipt.paymentDatetime === 'number'
       );
 
-      const summary = calculatePaymentBalance(validReceipts);
-
-      const groupedArray = Object.entries(summary.monthlyBalances)
+      const displaySummary = calculatePaymentBalance(validReceipts);
+      const groupedArray = Object.entries(displaySummary.monthlyBalances)
         .map(([title, data]) => ({
           title,
           data: data.payments.sort((a, b) => b.paymentDatetime - a.paymentDatetime),
@@ -276,8 +278,8 @@ const OverallPayment: React.FC = () => {
           return dateB.getTime() - dateA.getTime();
         });
 
-      setTotalBalance(summary.totalBalance);
       setGroupedPayments(groupedArray);
+
 
     } catch (error) {
       console.error('Error loading API receipts:', error);
@@ -326,15 +328,16 @@ const OverallPayment: React.FC = () => {
         StorageUtils.getStoredPayments()
       ]);
 
-      console.log('Online receipts:', onlineReceipts);
-      console.log('Local receipts:', localReceipts);
-
       if (!Array.isArray(onlineReceipts)) {
         console.error('Expected array of online receipts, got:', onlineReceipts);
         return;
       }
 
-      // Combine receipts, putting local ones first
+      // Calculate total balance using only online receipts
+      const onlineSummary = calculatePaymentBalance(onlineReceipts);
+      setTotalBalance(onlineSummary.totalBalance);
+
+      // Combine receipts for display purposes
       const allReceipts = [...localReceipts, ...onlineReceipts];
 
       // Filter out any invalid payments
@@ -344,10 +347,9 @@ const OverallPayment: React.FC = () => {
         typeof receipt.paymentDatetime === 'number'
       );
 
-      const summary = calculatePaymentBalance(validReceipts);
-      console.log('Payment summary:', summary);
-
-      const groupedArray = Object.entries(summary.monthlyBalances)
+      // Group all payments for display
+      const displaySummary = calculatePaymentBalance(validReceipts);
+      const groupedArray = Object.entries(displaySummary.monthlyBalances)
         .map(([title, data]) => ({
           title,
           data: data.payments.sort((a, b) => b.paymentDatetime - a.paymentDatetime),
@@ -359,7 +361,6 @@ const OverallPayment: React.FC = () => {
           return dateB.getTime() - dateA.getTime();
         });
 
-      setTotalBalance(summary.totalBalance);
       setGroupedPayments(groupedArray);
 
     } catch (error) {
@@ -373,8 +374,6 @@ const OverallPayment: React.FC = () => {
       setTotalBalance(0);
     }
   };
-
-
 
   // In OverallPayment.tsx
   // Update handleLongPress:
@@ -664,6 +663,8 @@ const OverallPayment: React.FC = () => {
 
 
   const renderMonthSection = ({ item }: { item: GroupedPayments }) => {
+
+
     const isExpanded = expandedMonths[item.title] ?? true;
 
     // Filter out local payments from the month's data
@@ -738,12 +739,21 @@ const OverallPayment: React.FC = () => {
               color="#666" />
           </TouchableOpacity>
         </View>
-        <Text style={styles.balanceAmount}>
-          {isBalanceVisible ? formatBalance(totalBalance) : '•••••'}
-        </Text>
-        <Text style={styles.balanceSubtitle}>
-          {isBalanceVisible ? <BalanceSummaryText balance={totalBalance} /> : '***'}
-        </Text>
+        {isApiLoading ? (
+          <View style={styles.balanceLoadingContainer}>
+            <ActivityIndicator size="small" color="#666" />
+            <Text style={styles.balanceLoadingText}>Loading balance...</Text>
+          </View>
+        ) : (
+          <>
+            <Text style={styles.balanceAmount}>
+              {isBalanceVisible ? formatBalance(totalBalance) : '•••••'}
+            </Text>
+            <Text style={styles.balanceSubtitle}>
+              {isBalanceVisible ? <BalanceSummaryText balance={totalBalance} /> : '***'}
+            </Text>
+          </>
+        )}
       </View>
 
       <TouchableOpacity
@@ -1014,6 +1024,17 @@ const styles = StyleSheet.create({
   },
   uploadButtonText: {
     fontSize: 12,
+    color: '#666',
+    fontWeight: '500',
+  },
+  balanceLoadingContainer: {
+    minHeight: 80,  // Adjust this value to match your normal balance display height
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+  },
+  balanceLoadingText: {
+    fontSize: 14,
     color: '#666',
     fontWeight: '500',
   },
