@@ -41,7 +41,7 @@ export class APIService {
         }
     }
 
-    static async savePayment(payment: PaymentPayload, delay: number = 10): Promise<Response> {
+    static async savePayment(payment: PaymentPayload, delay: number = 5000): Promise<Response> {
         const endpoint = `${this.BASE_URL}/records`;
         console.log('Attempting to save to:', endpoint);
 

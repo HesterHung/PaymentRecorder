@@ -1,3 +1,4 @@
-import EventEmitter from "react-native/Libraries/vendor/emitter/EventEmitter";
+// emitter.ts
+import { EventEmitter } from 'fbemitter';
 
 export const emitter = new EventEmitter();

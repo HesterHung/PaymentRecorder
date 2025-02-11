@@ -1,4 +1,4 @@
-//components\OverallPayment.tsx
+//components/OverallPayment.tsx
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, Dimensions, TouchableOpacity, Platform, UIManager, LayoutAnimation, ActivityIndicator } from 'react-native';
 import { StorageUtils } from '../utils/storage';
@@ -104,7 +104,6 @@ const OverallPayment: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
-
   useFocusEffect(
     React.useCallback(() => {
       const loadData = async () => {
@@ -120,7 +119,6 @@ const OverallPayment: React.FC = () => {
       loadData();
     }, [])
   );
-
 
   const toggleMonth = (monthTitle: string) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -324,9 +322,6 @@ const OverallPayment: React.FC = () => {
       setTotalBalance(0);
     }
   };
-
-  // In OverallPayment.tsx
-  // Update handleLongPress:
 
   const handleLongPress = async (payment: Payment) => {
     console.log('Long press detected for payment:', payment.id);
@@ -600,8 +595,14 @@ const OverallPayment: React.FC = () => {
               style={styles.uploadButton}
               onPress={() => handlePaymentUpload(item)}
             >
-              <Ionicons name="cloud-upload-outline" size={20} color="#666" />
-              <Text style={styles.uploadButtonText}>Upload</Text>
+              {isRetrying ? (
+                <ActivityIndicator size="small" color="#666" />
+              ) : (
+                <>
+                  <Ionicons name="cloud-upload-outline" size={20} color="#666" />
+                  <Text style={styles.uploadButtonText}>Upload</Text>
+                </>
+              )}
             </TouchableOpacity>
           )}
         </View>
@@ -609,11 +610,7 @@ const OverallPayment: React.FC = () => {
     );
   }, [localPayments, retryingPayments, users, handleLongPress, handlePaymentUpload]);
 
-
-
   const renderMonthSection = ({ item }: { item: GroupedPayments }) => {
-
-
     const isExpanded = expandedMonths[item.title] ?? true;
 
     // Filter out local payments from the month's data
@@ -704,13 +701,15 @@ const OverallPayment: React.FC = () => {
           </>
         )}
       </View>
-
+      {/*
       <TouchableOpacity
         style={styles.resetButton}
         onPress={handleResetAll}
       >
         <Text style={styles.resetButtonText}>Reset All Records (Debug)</Text>
       </TouchableOpacity>
+
+      */}
 
       {isLocalLoading ? (
         <View style={styles.loadingContainer}>
@@ -757,6 +756,7 @@ const styles = StyleSheet.create({
   },
   balanceCard: {
     margin: 16,
+    marginBottom: 20,
     padding: 20,
     backgroundColor: 'white',
     borderRadius: 16,
@@ -880,7 +880,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   monthTotalContainer: {
-    alignItems: 'flex-end', // Right align both texts
+    alignItems: 'flex-end',
   },
   monthTotal: {
     fontSize: 14,
@@ -933,7 +933,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff8dc',
     borderRadius: 12,
     padding: 16,
-    marginBottom: 20,
+    marginBottom: 5,
     borderWidth: 1,
     borderColor: '#ffd700',
   },
@@ -961,8 +961,7 @@ const styles = StyleSheet.create({
   localPaymentWrapper: {
     marginBottom: 8,
   },
-  localPaymentItem: {
-  },
+  localPaymentItem: {},
   uploadButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -977,7 +976,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   balanceLoadingContainer: {
-    minHeight: 80,  // Adjust this value to match your normal balance display height
+    minHeight: 80,
     justifyContent: 'center',
     alignItems: 'center',
     gap: 8,
