@@ -40,7 +40,7 @@ export class APIService {
 
         // Use 10 second timeout (10000 milliseconds)
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10); // Changed from 1 to 10000
+        const timeoutId = setTimeout(() => controller.abort(), 5000); // Changed from 1 to 10000
 
         try {
             console.log('Sending POST request with payload:', payment);

@@ -160,7 +160,7 @@ const OverallPayment: React.FC = () => {
     }
   };
 
-  const loadApiReceipts = async () => {
+  const loadApiReceipts = async (shouldRetry: boolean = true) => {
     setIsApiLoading(true);
     try {
       const onlineReceipts = await APIService.getPayments();
@@ -172,83 +172,87 @@ const OverallPayment: React.FC = () => {
       // Create a map of online receipt IDs for faster lookup
       const onlineReceiptIds = new Set(onlineReceipts.map(receipt => receipt.id));
 
-      // Create a map of local payment IDs that need retry
-      const localPaymentsToRetry = new Map();
-      localReceipts.forEach(payment => {
-        // Only retry if payment is local and not already on server
-        if (localPayments.has(payment.id) &&
-          !onlineReceiptIds.has(payment.id) &&
-          !failedPayments.has(payment.id)) {
-          localPaymentsToRetry.set(payment.id, payment);
-        }
-      });
-
-      // Start retry process for local payments
-      if (localPaymentsToRetry.size > 0) {
-        setRetryingPayments(prev => {
-          const next = { ...prev };
-          localPaymentsToRetry.forEach((_, id) => {
-            next[id] = true;
-          });
-          return next;
+      if (shouldRetry) {
+        const localPaymentsToRetry = new Map();
+        localReceipts.forEach(payment => {
+          // Only retry if payment is local and not already on server
+          if (localPayments.has(payment.id) &&
+            !onlineReceiptIds.has(payment.id) &&
+            !failedPayments.has(payment.id)) {
+            localPaymentsToRetry.set(payment.id, payment);
+          }
         });
 
-        // Retry logic for each payment
-        const retryPromises = Array.from(localPaymentsToRetry.entries()).map(([id, payment]) =>
-          new Promise(async (resolve) => {
-            let retryCount = 0;
-            const maxRetries = 4;
-            const retryInterval = 5000;
+        // Start retry process for local payments
+        if (localPaymentsToRetry.size > 0) {
+          setRetryingPayments(prev => {
+            const next = { ...prev };
+            localPaymentsToRetry.forEach((_, id) => {
+              next[id] = true;
+            });
+            return next;
+          });
 
-            const attemptUpload = async () => {
-              try {
-                await APIService.savePayment({
-                  title: payment.title,
-                  whoPaid: payment.whoPaid,
-                  amount: payment.amount,
-                  amountType: payment.amountType as 'total' | 'specify',
-                  paymentDatetime: payment.paymentDatetime
-                });
+          // Retry logic for each payment
+          const retryPromises = Array.from(localPaymentsToRetry.entries()).map(([id, payment]) =>
+            new Promise(async (resolve) => {
+              let retryCount = 0;
+              const maxRetries = 4;
+              const retryInterval = 5000;
 
-                // If upload successful, remove from local storage
-                await StorageUtils.deletePayment(payment.id);
-                setLocalPayments(prev => {
-                  const next = new Set(prev);
-                  next.delete(payment.id);
-                  return next;
-                });
+              const attemptUpload = async () => {
+                try {
+                  await APIService.savePayment({
+                    title: payment.title,
+                    whoPaid: payment.whoPaid,
+                    amount: payment.amount,
+                    amountType: payment.amountType as 'total' | 'specify',
+                    paymentDatetime: payment.paymentDatetime
+                  });
 
-                return true;
-              } catch (error) {
-                console.error('Upload attempt failed:', error);
-                return false;
+                  // If upload successful, remove from local storage
+                  await StorageUtils.deletePayment(payment.id);
+                  setLocalPayments(prev => {
+                    const next = new Set(prev);
+                    next.delete(payment.id);
+                    return next;
+                  });
+
+                  return true;
+                } catch (error) {
+                  console.error('Upload attempt failed:', error);
+                  return false;
+                }
+              };
+
+              while (retryCount < maxRetries) {
+                if (await attemptUpload()) {
+                  setRetryingPayments(prev => ({
+                    ...prev,
+                    [id]: false
+                  }));
+                  resolve(true);
+                  return;
+                }
+                await new Promise(r => setTimeout(r, retryInterval));
+                retryCount++;
               }
-            };
 
-            while (retryCount < maxRetries) {
-              if (await attemptUpload()) {
-                setRetryingPayments(prev => ({
-                  ...prev,
-                  [id]: false
-                }));
-                resolve(true);
-                return;
-              }
-              await new Promise(r => setTimeout(r, retryInterval));
-              retryCount++;
-            }
+              setFailedPayments(prev => new Set(prev).add(id));
+              setRetryingPayments(prev => ({
+                ...prev,
+                [id]: false
+              }));
+              resolve(false);
+            })
+          );
 
-            setFailedPayments(prev => new Set(prev).add(id));
-            setRetryingPayments(prev => ({
-              ...prev,
-              [id]: false
-            }));
-            resolve(false);
-          })
-        );
-
-        await Promise.all(retryPromises);
+          await Promise.all(retryPromises);
+        }
       }
+
+
+      // Create a map of local payment IDs that need retry
 
       // After all retries, reload all payments
       const finalOnlineReceipts = await APIService.getPayments();
@@ -279,7 +283,6 @@ const OverallPayment: React.FC = () => {
         });
 
       setGroupedPayments(groupedArray);
-
 
     } catch (error) {
       console.error('Error loading API receipts:', error);
@@ -399,19 +402,16 @@ const OverallPayment: React.FC = () => {
             try {
               if (isLocal) {
                 await StorageUtils.deletePayment(payment.id);
-                // Update local state
                 setLocalPayments(prev => {
                   const next = new Set(prev);
                   next.delete(payment.id);
                   return next;
                 });
-                // Load local receipts first
                 await loadLocalReceipts();
-                // Then load API receipts
-                await loadApiReceipts();
+                await loadApiReceipts(false);  // Don't retry when deleting
               } else {
                 await APIService.deletePayment(payment.id);
-                await loadApiReceipts();
+                await loadApiReceipts(false);  // Don't retry when deleting
               }
 
               Toast.show({
