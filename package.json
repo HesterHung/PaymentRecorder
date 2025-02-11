@@ -22,6 +22,7 @@
     "@react-navigation/bottom-tabs": "^7.2.0",
     "@react-navigation/native": "^7.0.14",
     "expo": "~52.0.23",
+    "expo-background-fetch": "~13.0.5",
     "expo-blur": "~14.0.1",
     "expo-camera": "~16.0.10",
     "expo-constants": "~17.0.3",
@@ -35,7 +36,9 @@
     "expo-status-bar": "~2.0.0",
     "expo-symbols": "~0.2.0",
     "expo-system-ui": "~4.0.6",
+    "expo-task-manager": "~12.0.5",
     "expo-web-browser": "~14.0.1",
+    "fbemitter": "^3.0.0",
     "lucide-react": "^0.473.0",
     "react": "18.3.1",
     "react-dom": "18.3.1",
@@ -48,12 +51,11 @@
     "react-native-toast-message": "^2.2.1",
     "react-native-view-shot": "~4.0.3",
     "react-native-web": "~0.19.13",
-    "react-native-webview": "13.12.5",
-    "expo-task-manager": "~12.0.5",
-    "expo-background-fetch": "~13.0.5"
+    "react-native-webview": "13.12.5"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
+    "@types/fbemitter": "^2.0.35",
     "@types/jest": "^29.5.12",
     "@types/react": "~18.3.12",
     "@types/react-test-renderer": "^18.3.0",

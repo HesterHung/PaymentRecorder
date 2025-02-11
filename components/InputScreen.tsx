@@ -11,7 +11,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PRIMARY_COLOR, USER_COLORS } from '@/constants/Colors';
 import AmountInput from './AmountInput';
 import APIService from '@/services/api';
-import EventEmitter from 'react-native/Libraries/vendor/emitter/EventEmitter';
+import { emitter } from '@/hooks/eventEmitter';
 
 const InputScreen: React.FC = () => {
   const params = useLocalSearchParams();
@@ -340,13 +340,15 @@ const InputScreen: React.FC = () => {
               // If successful, remove from local storage
               await StorageUtils.deletePayment(localPayment.id);
               await StorageUtils.setRetryStatus(localPayment.id, false);
-              // Added toast when retry upload is successful
               Toast.show({
                 type: 'success',
                 text1: 'Retry Upload Success',
                 text2: 'Payment uploaded successfully via retry.',
                 position: 'bottom',
               });
+              // Emit an event to notify OverallPayment to re-get new data
+              emitter.emit('paymentsUpdated');
+              router.push("/(tabs)/overall-payment");
             } catch (retryError) {
               console.error('Retry upload failed:', retryError);
               Toast.show({

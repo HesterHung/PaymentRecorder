@@ -12,6 +12,7 @@ import { USER_COLORS } from '@/constants/Colors';
 import Toast from 'react-native-toast-message';
 import APIService from '@/services/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { emitter } from '@/hooks/eventEmitter';
 
 const { width } = Dimensions.get('window');
 const peopleNumber = 2;
@@ -36,8 +37,16 @@ const OverallPayment: React.FC = () => {
   const [retryingPayments, setRetryingPayments] = useState<{ [key: string]: boolean }>({});
 
   useEffect(() => {
-    let isMounted = true;
+    const subscription = emitter.addListener('paymentsUpdated', async () => {
+      console.log('paymentsUpdated event received – re-getting data.');
+      await loadLocalReceipts();
+      await loadApiReceipts();
+    });
+    return () => subscription.remove();
+  }, []);
 
+  useEffect(() => {
+    let isMounted = true;
     const checkRetryStatus = async () => {
       if (!isMounted) return;
 
