@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, TextInput, ScrollView, Image, StyleSheet, TouchableOpacity, Text, Alert, GestureResponderEvent, Platform, BackHandler, Animated } from 'react-native';
+import { View, TextInput, ScrollView, Image, StyleSheet, TouchableOpacity, Text, Alert, GestureResponderEvent, Platform, BackHandler, ActivityIndicator } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -10,9 +10,8 @@ import userStorage from '@/services/userStorage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PRIMARY_COLOR, USER_COLORS } from '@/constants/Colors';
 import AmountInput from './AmountInput';
-import APIService from '@/services/api'
+import APIService from '@/services/api';
 
-//components\InputScreen.tsx
 const InputScreen: React.FC = () => {
   const params = useLocalSearchParams();
   const [existingPayment, setExistingPayment] = useState<Payment | null>(null);
@@ -29,6 +28,7 @@ const InputScreen: React.FC = () => {
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [users, setUsers] = useState<[string, string]>([CONSTANTS.PAYERS[0], CONSTANTS.PAYERS[1]]);
   const [whoPaid, setWhoPaid] = useState<string>('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const totalAmountRef = useRef<TextInput>(null);
   const specificAmountRef = useRef<TextInput>(null);
 
@@ -288,23 +288,25 @@ const InputScreen: React.FC = () => {
   }, [params.existingPayment]);
 
   async function handleSubmit(event: GestureResponderEvent): Promise<void> {
+    if (isSubmitting) return; // Prevent multiple submissions
+    setIsSubmitting(true);
+
     try {
       const numericAmount = amountType === 'total'
         ? parseFloat(totalAmount)
         : parseFloat(specificAmount);
 
       if (!whoPaid || !numericAmount || numericAmount <= 0) {
+        setIsSubmitting(false);
         Alert.alert('Hey!', 'Please fill in the $$$');
         return;
       }
-
-      // Convert 'specify' to 'specify' when sending to the API
 
       const paymentData = {
         title: title || 'Untitled',
         whoPaid,
         amount: numericAmount,
-        amountType: amountType, // Use the converted amount type
+        amountType: amountType,
         paymentDatetime: date.getTime(),
       };
 
@@ -359,6 +361,8 @@ const InputScreen: React.FC = () => {
         text2: 'Failed to save payment. Please try again.',
         position: 'bottom',
       });
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
@@ -379,8 +383,6 @@ const InputScreen: React.FC = () => {
       </View>
       <ScrollView style={styles.container}>
         <View style={styles.formContainer}>
-
-
           {/* 1. Date Section */}
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Date and Time</Text>
@@ -401,7 +403,7 @@ const InputScreen: React.FC = () => {
                   {date.toLocaleTimeString([], {
                     hour: '2-digit',
                     minute: '2-digit',
-                    second: '2-digit'  // Added seconds
+                    second: '2-digit'
                   })}
                 </Text>
                 <Ionicons name="time" size={24} color={PRIMARY_COLOR} />
@@ -439,7 +441,6 @@ const InputScreen: React.FC = () => {
                 style={styles.input}
                 placeholder="Enter a Title"
                 placeholderTextColor="#9CA3AF"
-
                 value={title}
                 onChangeText={setTitle}
               />
@@ -458,10 +459,12 @@ const InputScreen: React.FC = () => {
                 >
                   <View style={[
                     styles.payerCircle,
-                    whoPaid === payer ? {
-                      backgroundColor: USER_COLORS[users.indexOf(payer)],
-                      borderColor: USER_COLORS[users.indexOf(payer)]
-                    } : styles.inactivePayerCircle
+                    whoPaid === payer
+                      ? {
+                          backgroundColor: USER_COLORS[users.indexOf(payer)],
+                          borderColor: USER_COLORS[users.indexOf(payer)]
+                        }
+                      : styles.inactivePayerCircle
                   ]}>
                     <Ionicons
                       name={whoPaid === payer ? "person" : "person-outline"}
@@ -471,10 +474,9 @@ const InputScreen: React.FC = () => {
                   </View>
                   <Text style={[
                     styles.payerText,
-                    whoPaid === payer ? {
-                      color: USER_COLORS[users.indexOf(payer)],
-                      fontWeight: '600'
-                    } : styles.inactivePayerText
+                    whoPaid === payer
+                      ? { color: USER_COLORS[users.indexOf(payer)], fontWeight: '600' }
+                      : styles.inactivePayerText
                   ]}>
                     {payer}
                   </Text>
@@ -564,18 +566,21 @@ const InputScreen: React.FC = () => {
                 />
               )}
             </View>
-
-
           </View>
 
           {/* 5. Save/Update Expense Button */}
           <TouchableOpacity
             style={styles.submitButton}
             onPress={handleSubmit}
+            disabled={isSubmitting}
           >
-            <Text style={styles.submitButtonText}>
-              {existingPayment ? 'Update Expense' : 'Save Expense'}
-            </Text>
+            {isSubmitting ? (
+              <ActivityIndicator color="white" />
+            ) : (
+              <Text style={styles.submitButtonText}>
+                {existingPayment ? 'Update Expense' : 'Save Expense'}
+              </Text>
+            )}
           </TouchableOpacity>
 
           {/* 6. Cancel Button */}
@@ -604,8 +609,8 @@ const styles = StyleSheet.create({
   amountTypeBox: {
     flex: 1,
     backgroundColor: '#F3F4F6',
-    borderRadius: 12, // Reduced from 16
-    padding: 10, // Reduced from 16
+    borderRadius: 12,
+    padding: 10,
     alignItems: 'center',
     borderWidth: 2,
     borderColor: '#F3F4F6',
@@ -615,13 +620,13 @@ const styles = StyleSheet.create({
     borderColor: PRIMARY_COLOR,
   },
   iconCircle: {
-    width: 40, // Reduced from 48
-    height: 40, // Reduced from 48
+    width: 40,
+    height: 40,
     borderRadius: 20,
     backgroundColor: '#E5E7EB',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 8, // Reduced from 12
+    marginBottom: 8,
   },
   selectedIconCircle: {
     backgroundColor: PRIMARY_COLOR,
@@ -676,7 +681,8 @@ const styles = StyleSheet.create({
   },
   amountInput: {
     textAlign: 'left',
-  }, amountTypeOuterContainer: {
+  },
+  amountTypeOuterContainer: {
     position: 'relative',
     flexDirection: 'row',
     backgroundColor: '#F3F4F6',
@@ -764,7 +770,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#333',
   },
-
   payerButtons: {
     flexDirection: 'row',
     justifyContent: 'space-around',
@@ -775,7 +780,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
-
   payerCircle: {
     width: 50,
     height: 50,
@@ -857,8 +861,8 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 12,
     alignItems: 'center',
-    marginBottom: 12, // Add margin bottom to create space between buttons
-    width: '100%', // Ensure full width
+    marginBottom: 12,
+    width: '100%',
   },
   submitButtonText: {
     color: 'white',
@@ -872,7 +876,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: PRIMARY_COLOR,
-    width: '100%', // Ensure full width
+    width: '100%',
   },
   cancelButtonText: {
     color: PRIMARY_COLOR,
@@ -917,7 +921,7 @@ const styles = StyleSheet.create({
     color: '#000',
   },
   headerRightPlaceholder: {
-    width: 80, // Approximately the same width as the back button
+    width: 80,
   },
   selectedAmountType: {
     backgroundColor: PRIMARY_COLOR,
@@ -927,7 +931,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     borderColor: '#E5E7EB',
   },
-
 });
 
 export default InputScreen;
