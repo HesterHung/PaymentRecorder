@@ -1,3 +1,5 @@
+// _layout.tsx (RootLayout)
+
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
@@ -10,6 +12,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import Toast from 'react-native-toast-message';
 import React from 'react';
 import { registerBackgroundPrefetchTask } from './hooks/backgroundPrefetch';
+import { registerBackgroundRetryTask } from './hooks/backgroundRetryUpload';
 import APIService from '@/services/api';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
@@ -29,8 +32,8 @@ export default function RootLayout() {
     }
   }, [loaded]);
 
+  // Example API call on launch
   useEffect(() => {
-    // Call your API when the app launches
     async function fetchData() {
       try {
         const payments = await APIService.getPayments();
@@ -42,9 +45,12 @@ export default function RootLayout() {
     fetchData();
   }, []);
 
-  // Register background prefetch task regardless of loaded state
+  // Register background tasks
   useEffect(() => {
+    // Register prefetch task if needed
     registerBackgroundPrefetchTask();
+    // Register the background retry upload task
+    registerBackgroundRetryTask();
   }, []);
 
   // Now conditionally render the UI. All hooks are always called.
