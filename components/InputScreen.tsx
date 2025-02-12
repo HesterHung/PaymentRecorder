@@ -359,7 +359,7 @@ const InputScreen: React.FC = () => {
               });
               await StorageUtils.setRetryStatus(localPayment.id, false);
             }
-          }, 2000);
+          }, 500);
         }
       }
 
