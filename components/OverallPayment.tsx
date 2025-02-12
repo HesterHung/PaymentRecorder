@@ -443,73 +443,58 @@ const OverallPayment: React.FC = () => {
   };
 
   const handlePaymentUpload = async (payment: Payment) => {
-    Alert.alert(
-      "Upload Payment",
-      "Do you want to upload this locally saved payment to the server?",
-      [
-        {
-          text: "Cancel",
-          style: "cancel"
-        },
-        {
-          text: "Upload",
-          onPress: async () => {
-            try {
-              // Set retrying state for this specific payment
-              setRetryingPayments(prev => ({
-                ...prev,
-                [payment.id]: true
-              }));
+    try {
+      // Set retrying state for this specific payment
+      setRetryingPayments(prev => ({
+        ...prev,
+        [payment.id]: true
+      }));
 
-              // Upload to server
-              await APIService.savePayment({
-                title: payment.title,
-                whoPaid: payment.whoPaid,
-                amount: payment.amount,
-                amountType: payment.amountType as 'total' | 'specify',
-                paymentDatetime: payment.paymentDatetime
-              });
+      // Upload to server
+      await APIService.savePayment({
+        title: payment.title,
+        whoPaid: payment.whoPaid,
+        amount: payment.amount,
+        amountType: payment.amountType as 'total' | 'specify',
+        paymentDatetime: payment.paymentDatetime
+      });
 
-              // Remove from local storage
-              await StorageUtils.deletePayment(payment.id);
+      // Remove from local storage
+      await StorageUtils.deletePayment(payment.id);
 
-              // Update local payments state
-              setLocalPayments(prev => {
-                const next = new Set(prev);
-                next.delete(payment.id);
-                return next;
-              });
+      // Update local payments state
+      setLocalPayments(prev => {
+        const next = new Set(prev);
+        next.delete(payment.id);
+        return next;
+      });
 
-              Toast.show({
-                type: 'success',
-                text1: 'Success',
-                text2: 'Payment uploaded successfully'
-              });
+      Toast.show({
+        type: 'success',
+        text1: 'Success',
+        text2: 'Payment uploaded successfully'
+      });
 
-              // Refresh both local and API data
-              await loadLocalReceipts();
-              await loadApiReceipts();
+      // Refresh both local and API data
+      await loadLocalReceipts();
+      await loadApiReceipts();
 
-            } catch (error) {
-              console.error('Error uploading payment:', error);
-              Toast.show({
-                type: 'error',
-                text1: 'Error',
-                text2: 'Failed to upload payment. Please try again later.'
-              });
-            } finally {
-              // Clear retrying state for this payment
-              setRetryingPayments(prev => ({
-                ...prev,
-                [payment.id]: false
-              }));
-            }
-          }
-        }
-      ]
-    );
+    } catch (error) {
+      console.error('Error uploading payment:', error);
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: 'Failed to upload payment. Please try again later.'
+      });
+    } finally {
+      // Clear retrying state for this payment
+      setRetryingPayments(prev => ({
+        ...prev,
+        [payment.id]: false
+      }));
+    }
   };
-
+  
   const renderReceiptItem = useCallback(({ item }: { item: Payment }) => {
     const isLocal = localPayments.has(item.id);
     const isRetrying = retryingPayments[item.id];
@@ -614,7 +599,7 @@ const OverallPayment: React.FC = () => {
     // Calculate the total amount for online payments only
     const onlineTotal = onlinePayments.reduce((sum, payment) => {
       const amount = payment.amountType === 'total' ? payment.amount / 2 : payment.amount;
-      return sum + (payment.whoPaid === users[0] ? -amount : amount);
+      return sum + (payment.whoPaid === users[0] ? amount : -amount);
     }, 0);
 
     // Don't render the month section if there are no online payments
