@@ -14,6 +14,7 @@ import React from 'react';
 import { registerBackgroundPrefetchTask } from './hooks/backgroundPrefetch';
 import { registerBackgroundRetryTask } from './hooks/backgroundRetryUpload';
 import APIService from '@/services/api';
+import { emitter } from '@/hooks/eventEmitter';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -37,7 +38,7 @@ export default function RootLayout() {
     async function fetchData() {
       try {
         const payments = await APIService.getPayments();
-        console.log('API fetched on launch. Payments count:', payments.length);
+        console.log('API fetched on launch. Payments count:', payments.length);        
       } catch (error) {
         console.error('Error fetching API on launch:', error instanceof Error ? error.message : error);
       }

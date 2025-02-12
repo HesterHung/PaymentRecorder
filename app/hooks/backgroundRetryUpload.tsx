@@ -3,6 +3,7 @@ import * as BackgroundFetch from 'expo-background-fetch';
 import { StorageUtils } from '@/utils/storage';
 import APIService from '@/services/api';
 import { Payment } from '@/types/payment';
+import { emitter } from '@/hooks/eventEmitter';
 
 const TASK_NAME = 'background-retry-upload';
 
@@ -30,6 +31,7 @@ TaskManager.defineTask(
           // On successful upload, remove the payment from local storage
           await StorageUtils.deletePayment(payment.id);
           console.log(`Payment ${payment.id} successfully uploaded in background.`);
+          emitter.emit('paymentsUpdated');
         } catch (uploadError) {
           console.error(`Background upload failed for payment ${payment.id}:`, uploadError);
           // Keep the payment for future retry attempts.

@@ -1,6 +1,6 @@
 //components/OverallPayment.tsx
-import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, Dimensions, TouchableOpacity, Platform, UIManager, LayoutAnimation, ActivityIndicator } from 'react-native';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { View, Text, StyleSheet, FlatList, Dimensions, TouchableOpacity, Platform, UIManager, LayoutAnimation, ActivityIndicator, AppState, AppStateStatus } from 'react-native';
 import { StorageUtils } from '../utils/storage';
 import { Ionicons } from '@expo/vector-icons';
 import { Payment, GroupedPayments, CONSTANTS } from '../types/payment';
@@ -35,6 +35,28 @@ const OverallPayment: React.FC = () => {
   const [isApiLoading, setIsApiLoading] = useState(false);
   const [isLocalLoading, setIsLocalLoading] = useState(false);
   const [retryingPayments, setRetryingPayments] = useState<{ [key: string]: boolean }>({});
+
+  // Track app state changes
+  const appState = useRef<AppStateStatus>(AppState.currentState);
+
+  // Use AppState to refresh data when the app becomes active from background.
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', nextAppState => {
+      if (
+        appState.current.match(/inactive|background/) &&
+        nextAppState === 'active'
+      ) {
+        console.log('App has come to the foreground; refreshing data.');
+        loadLocalReceipts();
+        loadApiReceipts();
+      }
+      appState.current = nextAppState;
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
 
   useEffect(() => {
     const subscription = emitter.addListener('paymentsUpdated', async () => {
@@ -688,13 +710,14 @@ const OverallPayment: React.FC = () => {
           </>
         )}
       </TouchableOpacity>
-
+      {/*      
       <TouchableOpacity
         style={styles.resetButton}
         onPress={handleResetAll}
       >
         <Text style={styles.resetButtonText}>Reset All Records (Debug)</Text>
       </TouchableOpacity>
+      */}
 
       {isLocalLoading ? (
         <View style={styles.loadingContainer}>
