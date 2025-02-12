@@ -10,6 +10,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import Toast from 'react-native-toast-message';
 import React from 'react';
 import { registerBackgroundPrefetchTask } from './hooks/backgroundPrefetch';
+import APIService from '@/services/api';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -27,6 +28,19 @@ export default function RootLayout() {
       SplashScreen.hideAsync();
     }
   }, [loaded]);
+
+  useEffect(() => {
+    // Call your API when the app launches
+    async function fetchData() {
+      try {
+        const payments = await APIService.getPayments();
+        console.log('API fetched on launch. Payments count:', payments.length);
+      } catch (error) {
+        console.error('Error fetching API on launch:', error instanceof Error ? error.message : error);
+      }
+    }
+    fetchData();
+  }, []);
 
   // Register background prefetch task regardless of loaded state
   useEffect(() => {
