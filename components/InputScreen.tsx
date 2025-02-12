@@ -312,13 +312,14 @@ const InputScreen: React.FC = () => {
       };
 
       let uploadSuccess = false;
+      let retryInProgress = false;
 
       // First attempt for upload
       try {
         await APIService.savePayment(paymentData, 2000);
         uploadSuccess = true;
 
-        // In case a copy of this payment exists locally, remove it.
+        // In case a copy of this payment exists locally, remove it
         const localPayments = await StorageUtils.getStoredPayments();
         const localPayment = localPayments.find(p =>
           p.title === paymentData.title &&
@@ -330,47 +331,59 @@ const InputScreen: React.FC = () => {
 
       } catch (error) {
         console.error('First upload attempt failed:', error);
-        // Save locally if first attempt fails
-        await StorageUtils.savePayment(paymentData);
 
-        // Get the payment ID from local storage
-        const payments = await StorageUtils.getStoredPayments();
-        const localPayment = payments.find(p =>
-          p.title === paymentData.title &&
-          p.paymentDatetime === paymentData.paymentDatetime
-        );
+        if (!retryInProgress) {
+          retryInProgress = true;
+          // Save locally if first attempt fails
+          await StorageUtils.savePayment(paymentData);
 
-        if (localPayment?.id) {
-          // Set retry status
-          await StorageUtils.setRetryStatus(localPayment.id, true);
+          // Get the payment ID from local storage
+          const payments = await StorageUtils.getStoredPayments();
+          const localPayment = payments.find(p =>
+            p.title === paymentData.title &&
+            p.paymentDatetime === paymentData.paymentDatetime
+          );
 
-          // Single retry attempt after 500ms
-          setTimeout(async () => {
-            try {
-              await APIService.savePayment(paymentData, 25000);
-              // If successful, remove from local storage
-              await StorageUtils.deletePayment(localPayment.id);
-              await StorageUtils.setRetryStatus(localPayment.id, false);
-              Toast.show({
-                type: 'success',
-                text1: 'Retry Upload Success',
-                text2: 'Payment uploaded successfully via retry.',
-                position: 'bottom',
-              });
-              // Emit an event to notify OverallPayment to re-get new data
-              emitter.emit('paymentsUpdated');
-              router.push("/(tabs)/overall-payment");
-            } catch (retryError) {
-              console.error('Retry upload failed:', retryError);
-              Toast.show({
-                type: 'error',
-                text1: 'Retry Upload Failed',
-                text2: 'Failed to upload payment on retry. Please try again later.',
-                position: 'bottom',
-              });
-              await StorageUtils.setRetryStatus(localPayment.id, false);
-            }
-          }, 500);
+          if (localPayment?.id) {
+            // Set retry status
+            await StorageUtils.setRetryStatus(localPayment.id, true);
+
+            // Single retry attempt after 500ms
+            setTimeout(async () => {
+              try {
+                const retryResponse = await APIService.savePayment(paymentData, 25000);
+                // Check if the payment was already uploaded successfully
+                const currentLocalPayments = await StorageUtils.getStoredPayments();
+                const paymentStillExists = currentLocalPayments.some(p => p.id === localPayment.id);
+
+                if (paymentStillExists) {
+                  // If successful, remove from local storage
+                  await StorageUtils.deletePayment(localPayment.id);
+                  await StorageUtils.setRetryStatus(localPayment.id, false);
+                  Toast.show({
+                    type: 'success',
+                    text1: 'Retry Upload Success',
+                    text2: 'Payment uploaded successfully via retry.',
+                    position: 'bottom',
+                  });
+                  // Emit an event to notify OverallPayment to re-get new data
+                  emitter.emit('paymentsUpdated');
+                }
+                router.push("/(tabs)/overall-payment");
+              } catch (retryError) {
+                console.error('Retry upload failed:', retryError);
+                Toast.show({
+                  type: 'error',
+                  text1: 'Retry Upload Failed',
+                  text2: 'Failed to upload payment on retry. Please try again later.',
+                  position: 'bottom',
+                });
+                await StorageUtils.setRetryStatus(localPayment.id, false);
+              } finally {
+                retryInProgress = false;
+              }
+            }, 500);
+          }
         }
       }
 
