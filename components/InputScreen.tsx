@@ -315,7 +315,7 @@ const InputScreen: React.FC = () => {
 
       // First attempt
       try {
-        await APIService.savePayment(paymentData);
+        await APIService.savePayment(paymentData, 3000);
         uploadSuccess = true;
       } catch (error) {
         console.error('First upload attempt failed:', error);
@@ -336,7 +336,7 @@ const InputScreen: React.FC = () => {
           // Single retry attempt after 2 seconds
           setTimeout(async () => {
             try {
-              await APIService.savePayment(paymentData, 10000);
+              await APIService.savePayment(paymentData, 25000);
               // If successful, remove from local storage
               await StorageUtils.deletePayment(localPayment.id);
               await StorageUtils.setRetryStatus(localPayment.id, false);
