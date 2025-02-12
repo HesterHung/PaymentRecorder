@@ -8,7 +8,8 @@ export const CONSTANTS = {
   STORAGE_KEYS: {
     PAYMENTS: 'stored_payments',
     USERS: 'users',
-    PENDING_UPLOADS: 'pending_uploads'  // Add this line
+    PENDING_UPLOADS: 'pending_uploads',  // Add this line
+    RETRY_STATUS: 'retry_status',
   },
   // Default PAYERS array for immediate use
   PAYERS: ['Hester', 'Lok'] as PayerTuple,

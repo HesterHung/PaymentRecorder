@@ -12,6 +12,8 @@ export default function TabsLayout() {
 
   const hideTabBar = pathname.includes('standard-input');
 
+
+  
   useEffect(() => {
     const backAction = () => {
       if (pathname.includes('standard-input')) {

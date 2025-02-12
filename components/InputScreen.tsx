@@ -12,6 +12,7 @@ import { PRIMARY_COLOR, USER_COLORS } from '@/constants/Colors';
 import AmountInput from './AmountInput';
 import APIService from '@/services/api';
 import { emitter } from '@/hooks/eventEmitter';
+import { registerBackgroundTasks, testBackgroundUpload } from '@/services/backgroundTasks';
 
 const InputScreen: React.FC = () => {
   const params = useLocalSearchParams();
@@ -32,6 +33,55 @@ const InputScreen: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const totalAmountRef = useRef<TextInput>(null);
   const specificAmountRef = useRef<TextInput>(null);
+
+  useEffect(() => {
+    // Register background tasks when component mounts
+    const setupBackgroundTasks = async () => {
+      try {
+        await registerBackgroundTasks();
+        console.log('✅ Background tasks registered successfully');
+      } catch (error) {
+        console.error('❌ Failed to register background tasks:', error);
+      }
+    };
+
+    setupBackgroundTasks();
+  }, []); // Empty dependency array means this runs once when component mounts
+
+  // Then modify your existing DEV mode useEffect
+  useEffect(() => {
+    if (__DEV__) {
+      // Try upload once after 5 seconds
+      const timer = setTimeout(async () => {
+        try {
+          // First ensure background tasks are registered
+          await registerBackgroundTasks();
+          // Then test the background upload
+          await testBackgroundUpload();
+        } catch (error) {
+          console.error('Error in background task setup:', error);
+        }
+      }, 1000);
+
+      return () => clearTimeout(timer);
+    }
+  }, []);
+
+  useEffect(() => {
+    const uploadSuccessListener = emitter.addListener('paymentsUpdated', () => {
+      // Optionally refresh your data here if needed
+      Toast.show({
+        type: 'success',
+        text1: 'Background Upload Success',
+        text2: 'Payment was successfully uploaded',
+        position: 'bottom',
+      });
+    });
+
+    return () => {
+      uploadSuccessListener.remove();
+    };
+  }, []);
 
   useEffect(() => {
     const loadUsers = async () => {
@@ -311,70 +361,50 @@ const InputScreen: React.FC = () => {
         paymentDatetime: date.getTime(),
       };
 
-      let uploadSuccess = false;
-
-      // First attempt
       try {
-        await APIService.savePayment(paymentData, 3000);
-        uploadSuccess = true;
+        // First attempt with short timeout
+        await APIService.savePayment(paymentData, 10);
+
+        Toast.show({
+          type: 'success',
+          text1: 'Success',
+          text2: 'Payment uploaded successfully',
+          position: 'bottom',
+        });
+
       } catch (error) {
         console.error('First upload attempt failed:', error);
-        // Save locally first
-        await StorageUtils.savePayment(paymentData);
 
-        // Get the payment ID from local storage
-        const payments = await StorageUtils.getStoredPayments();
-        const localPayment = payments.find(p =>
-          p.title === paymentData.title &&
-          p.paymentDatetime === paymentData.paymentDatetime
-        );
+        // Save locally and set up for background retry
+        try {
+          const savedPayment = await StorageUtils.savePayment(paymentData);
+          if (savedPayment.id) {
+            await StorageUtils.addPendingUpload(savedPayment);
+            await StorageUtils.setRetryStatus(savedPayment.id, true);
+            await StorageUtils.resetRetryCount(savedPayment.id);
 
-        if (localPayment?.id) {
-          // Set retry status
-          await StorageUtils.setRetryStatus(localPayment.id, true);
-
-          // Single retry attempt after 2 seconds
-          setTimeout(async () => {
-            try {
-              await APIService.savePayment(paymentData, 25000);
-              // If successful, remove from local storage
-              await StorageUtils.deletePayment(localPayment.id);
-              await StorageUtils.setRetryStatus(localPayment.id, false);
-              Toast.show({
-                type: 'success',
-                text1: 'Retry Upload Success',
-                text2: 'Payment uploaded successfully via retry.',
-                position: 'bottom',
-              });
-              // Emit an event to notify OverallPayment to re-get new data
-              emitter.emit('paymentsUpdated');
-              router.push("/(tabs)/overall-payment");
-            } catch (retryError) {
-              console.error('Retry upload failed:', retryError);
-              Toast.show({
-                type: 'error',
-                text1: 'Retry Upload Failed',
-                text2: 'Failed to upload payment on retry. Please try again later.',
-                position: 'bottom',
-              });
-              await StorageUtils.setRetryStatus(localPayment.id, false);
-            }
-          }, 2000);
+            Toast.show({
+              type: 'info',
+              text1: 'Cannot Connect To Server',
+              text2: 'Payment saved locally. Will retry upload in background.',
+              position: 'bottom',
+            });
+          }
+        } catch (storageError) {
+          console.error('Error saving payment locally:', storageError);
+          Toast.show({
+            type: 'error',
+            text1: 'Error',
+            text2: 'Failed to save payment locally.',
+            position: 'bottom',
+          });
+          return;
         }
       }
 
-      // Show appropriate toast message
-      Toast.show({
-        type: uploadSuccess ? 'success' : 'info',
-        text1: uploadSuccess ? 'Success' : 'Cannot Connect To Server',
-        text2: uploadSuccess
-          ? 'Payment uploaded successfully'
-          : 'Payment saved locally. Attempt re-uploading...',
-        position: 'bottom',
-      });
-
       resetForm();
       router.push("/(tabs)/overall-payment");
+
     } catch (error) {
       console.error('Submit Error:', error);
       Toast.show({

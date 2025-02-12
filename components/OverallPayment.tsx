@@ -50,20 +50,20 @@ const OverallPayment: React.FC = () => {
     const checkRetryStatus = async () => {
       if (!isMounted) return;
 
-      const newStatus = await StorageUtils.getRetryStatus();
-      setRetryingPayments(prevStatus => {
-        // Only update if the status has actually changed
-        if (JSON.stringify(prevStatus) !== JSON.stringify(newStatus)) {
-          return newStatus;
-        }
-        return prevStatus;
-      });
+      try {
+        const status = await StorageUtils.getAllRetryStatuses();
+        setRetryingPayments(prevStatus => {
+          if (JSON.stringify(prevStatus) !== JSON.stringify(status)) {
+            return status;
+          }
+          return prevStatus;
+        });
+      } catch (error) {
+        console.error('Error checking retry status:', error);
+      }
     };
 
-    // Check initially
     checkRetryStatus();
-
-    // Optionally, increase the interval or debounce updates
     const intervalId = setInterval(checkRetryStatus, 2000);
 
     return () => {
@@ -494,7 +494,7 @@ const OverallPayment: React.FC = () => {
       }));
     }
   };
-  
+
   const renderReceiptItem = useCallback(({ item }: { item: Payment }) => {
     const isLocal = localPayments.has(item.id);
     const isRetrying = retryingPayments[item.id];
@@ -684,7 +684,7 @@ const OverallPayment: React.FC = () => {
           </>
         )}
       </TouchableOpacity>
-      {/*
+
       <TouchableOpacity
         style={styles.resetButton}
         onPress={handleResetAll}
@@ -692,7 +692,7 @@ const OverallPayment: React.FC = () => {
         <Text style={styles.resetButtonText}>Reset All Records (Debug)</Text>
       </TouchableOpacity>
 
-      */}
+      *
 
       {isLocalLoading ? (
         <View style={styles.loadingContainer}>

@@ -10,6 +10,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import Toast from 'react-native-toast-message';
 import React from 'react';
 import { registerBackgroundPrefetchTask } from './hooks/backgroundPrefetch';
+import { registerBackgroundTasks } from '@/services/backgroundTasks';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -21,6 +22,7 @@ export default function RootLayout() {
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
   });
 
+
   // Register splash hide when fonts are ready
   useEffect(() => {
     if (loaded) {
@@ -31,6 +33,10 @@ export default function RootLayout() {
   // Register background prefetch task regardless of loaded state
   useEffect(() => {
     registerBackgroundPrefetchTask();
+  }, []);
+
+  useEffect(() => {
+    registerBackgroundTasks();
   }, []);
 
   // Now conditionally render the UI. All hooks are always called.
