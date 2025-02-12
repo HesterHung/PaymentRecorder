@@ -506,8 +506,6 @@ const OverallPayment: React.FC = () => {
   };
 
   const renderReceiptItem = useCallback(({ item }: { item: Payment }) => {
-    console.log('Rendering payment item:', item.id, 'Is Local:', localPayments.has(item.id));
-
     const isLocal = localPayments.has(item.id);
     const isRetrying = retryingPayments[item.id];
 
@@ -546,15 +544,6 @@ const OverallPayment: React.FC = () => {
             <Text style={styles.paymentTime}>{formattedTime}</Text>
           </View>
           <View style={styles.amountSection}>
-            {isLocal && (
-              <View style={[styles.warningIcon, { width: 24, height: 24 }]}>
-                {isRetrying ? (
-                  <ActivityIndicator size="small" color="#0000ff" />
-                ) : (
-                  <Ionicons name="cloud-upload-outline" size={20} color="#0000ff" />
-                )}
-              </View>
-            )}
             <View style={[
               styles.amountContainer,
               {
@@ -592,11 +581,18 @@ const OverallPayment: React.FC = () => {
           </View>
           {isLocal && (
             <TouchableOpacity
-              style={styles.uploadButton}
+              style={[
+                styles.uploadButton,
+                isRetrying && styles.uploadButtonRetrying
+              ]}
               onPress={() => handlePaymentUpload(item)}
+              disabled={isRetrying}
             >
               {isRetrying ? (
-                <ActivityIndicator size="small" color="#666" />
+                <>
+                  <ActivityIndicator size="small" color="#666" />
+                  <Text style={styles.uploadButtonText}>Retrying...</Text>
+                </>
               ) : (
                 <>
                   <Ionicons name="cloud-upload-outline" size={20} color="#666" />
@@ -962,19 +958,6 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   localPaymentItem: {},
-  uploadButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    padding: 8,
-    borderRadius: 8,
-    backgroundColor: '#f0f0f0',
-  },
-  uploadButtonText: {
-    fontSize: 12,
-    color: '#666',
-    fontWeight: '500',
-  },
   balanceLoadingContainer: {
     minHeight: 80,
     justifyContent: 'center',
@@ -983,6 +966,24 @@ const styles = StyleSheet.create({
   },
   balanceLoadingText: {
     fontSize: 14,
+    color: '#666',
+    fontWeight: '500',
+  },
+  uploadButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: '#f0f0f0',
+    minWidth: 100,
+    justifyContent: 'center',
+  },
+  uploadButtonRetrying: {
+    backgroundColor: '#e8e8e8',
+  },
+  uploadButtonText: {
+    fontSize: 12,
     color: '#666',
     fontWeight: '500',
   },

@@ -299,7 +299,7 @@ const InputScreen: React.FC = () => {
 
       if (!whoPaid || !numericAmount || numericAmount <= 0) {
         setIsSubmitting(false);
-        Alert.alert('Hey!', 'Please fill in the $$$');
+        Alert.alert('Invalid Input!', 'Please fill in the amount.');
         return;
       }
 
