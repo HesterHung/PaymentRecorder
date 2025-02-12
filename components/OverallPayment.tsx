@@ -455,12 +455,11 @@ const OverallPayment: React.FC = () => {
           text: "Upload",
           onPress: async () => {
             try {
-              // Show loading toast
-              Toast.show({
-                type: 'info',
-                text1: 'Uploading...',
-                text2: 'Please wait'
-              });
+              // Set retrying state for this specific payment
+              setRetryingPayments(prev => ({
+                ...prev,
+                [payment.id]: true
+              }));
 
               // Upload to server
               await APIService.savePayment({
@@ -489,7 +488,7 @@ const OverallPayment: React.FC = () => {
 
               // Refresh both local and API data
               await loadLocalReceipts();
-              await loadApiReceipts(); // Don't retry when we just uploaded
+              await loadApiReceipts();
 
             } catch (error) {
               console.error('Error uploading payment:', error);
@@ -498,6 +497,12 @@ const OverallPayment: React.FC = () => {
                 text1: 'Error',
                 text2: 'Failed to upload payment. Please try again later.'
               });
+            } finally {
+              // Clear retrying state for this payment
+              setRetryingPayments(prev => ({
+                ...prev,
+                [payment.id]: false
+              }));
             }
           }
         }
@@ -508,12 +513,6 @@ const OverallPayment: React.FC = () => {
   const renderReceiptItem = useCallback(({ item }: { item: Payment }) => {
     const isLocal = localPayments.has(item.id);
     const isRetrying = retryingPayments[item.id];
-
-    const handlePress = () => {
-      if (isLocal) {
-        handlePaymentUpload(item);
-      }
-    };
 
     const date = new Date(item.paymentDatetime);
     const formattedDate = date.toLocaleDateString();
@@ -591,7 +590,7 @@ const OverallPayment: React.FC = () => {
               {isRetrying ? (
                 <>
                   <ActivityIndicator size="small" color="#666" />
-                  <Text style={styles.uploadButtonText}>Retrying...</Text>
+                  <Text style={styles.uploadButtonText}>Uploading...</Text>
                 </>
               ) : (
                 <>
@@ -671,15 +670,18 @@ const OverallPayment: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.balanceCard}>
+      <TouchableOpacity
+        style={styles.balanceCard}
+        onPress={toggleBalanceVisibility}
+        activeOpacity={0.6}
+      >
         <View style={styles.balanceHeader}>
           <Text style={styles.balanceTitle}>Overall Balance</Text>
-          <TouchableOpacity onPress={toggleBalanceVisibility}>
-            <Ionicons
-              name={isBalanceVisible ? "eye-outline" : "eye-off-outline"}
-              size={32}
-              color="#666" />
-          </TouchableOpacity>
+          <Ionicons
+            name={isBalanceVisible ? "eye-outline" : "eye-off-outline"}
+            size={28}
+            color="#666"
+          />
         </View>
         {isApiLoading ? (
           <View style={styles.balanceLoadingContainer}>
@@ -696,7 +698,7 @@ const OverallPayment: React.FC = () => {
             </Text>
           </>
         )}
-      </View>
+      </TouchableOpacity>
       {/*
       <TouchableOpacity
         style={styles.resetButton}
@@ -974,18 +976,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
     padding: 8,
+    paddingHorizontal: 12,
     borderRadius: 8,
     backgroundColor: '#f0f0f0',
-    minWidth: 100,
+    minWidth: 110,
     justifyContent: 'center',
+    height: 36,
   },
   uploadButtonRetrying: {
     backgroundColor: '#e8e8e8',
+    opacity: 0.8,
   },
   uploadButtonText: {
     fontSize: 12,
     color: '#666',
     fontWeight: '500',
+    marginLeft: 4,
   },
 });
 
