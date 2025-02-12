@@ -313,13 +313,24 @@ const InputScreen: React.FC = () => {
 
       let uploadSuccess = false;
 
-      // First attempt
+      // First attempt for upload
       try {
         await APIService.savePayment(paymentData, 2000);
         uploadSuccess = true;
+
+        // In case a copy of this payment exists locally, remove it.
+        const localPayments = await StorageUtils.getStoredPayments();
+        const localPayment = localPayments.find(p =>
+          p.title === paymentData.title &&
+          p.paymentDatetime === paymentData.paymentDatetime
+        );
+        if (localPayment?.id) {
+          await StorageUtils.deletePayment(localPayment.id);
+        }
+
       } catch (error) {
         console.error('First upload attempt failed:', error);
-        // Save locally first
+        // Save locally if first attempt fails
         await StorageUtils.savePayment(paymentData);
 
         // Get the payment ID from local storage
@@ -333,7 +344,7 @@ const InputScreen: React.FC = () => {
           // Set retry status
           await StorageUtils.setRetryStatus(localPayment.id, true);
 
-          // Single retry attempt after 2 seconds
+          // Single retry attempt after 500ms
           setTimeout(async () => {
             try {
               await APIService.savePayment(paymentData, 25000);

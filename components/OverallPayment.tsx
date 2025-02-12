@@ -1,6 +1,6 @@
 //components/OverallPayment.tsx
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Text, StyleSheet, FlatList, Dimensions, TouchableOpacity, Platform, UIManager, LayoutAnimation, ActivityIndicator, AppState, AppStateStatus } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Dimensions, TouchableOpacity, Platform, UIManager, LayoutAnimation, ActivityIndicator, AppState, AppStateStatus, RefreshControl } from 'react-native';
 import { StorageUtils } from '../utils/storage';
 import { Ionicons } from '@expo/vector-icons';
 import { Payment, GroupedPayments, CONSTANTS } from '../types/payment';
@@ -35,6 +35,7 @@ const OverallPayment: React.FC = () => {
   const [isApiLoading, setIsApiLoading] = useState(false);
   const [isLocalLoading, setIsLocalLoading] = useState(false);
   const [retryingPayments, setRetryingPayments] = useState<{ [key: string]: boolean }>({});
+  const [refreshing, setRefreshing] = useState(false); // RefreshControl state
 
   // Track app state changes
   const appState = useRef<AppStateStatus>(AppState.currentState);
@@ -145,6 +146,13 @@ const OverallPayment: React.FC = () => {
       loadData();
     }, [])
   );
+
+  const refreshData = async () => {
+    setRefreshing(true);
+    await loadLocalReceipts();
+    await loadApiReceipts();
+    setRefreshing(false);
+  };
 
   const toggleMonth = (monthTitle: string) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -680,68 +688,59 @@ const OverallPayment: React.FC = () => {
   };
 
   return (
-    <View style={styles.container}>
-      <TouchableOpacity
-        style={styles.balanceCard}
-        onPress={toggleBalanceVisibility}
-        activeOpacity={0.6}
-      >
-        <View style={styles.balanceHeader}>
-          <Text style={styles.balanceTitle}>Overall Balance</Text>
-          <Ionicons
-            name={isBalanceVisible ? "eye-outline" : "eye-off-outline"}
-            size={28}
-            color="#666"
-          />
-        </View>
-        {isApiLoading ? (
-          <View style={styles.balanceLoadingContainer}>
-            <ActivityIndicator size="small" color="#666" />
-            <Text style={styles.balanceLoadingText}>Loading balance...</Text>
-          </View>
-        ) : (
-          <>
-            <Text style={styles.balanceAmount}>
-              {isBalanceVisible ? formatBalance(totalBalance) : '•••••'}
-            </Text>
-            <Text style={styles.balanceSubtitle}>
-              {isBalanceVisible ? <BalanceSummaryText balance={totalBalance} /> : '***'}
-            </Text>
-          </>
-        )}
-      </TouchableOpacity>
-      {/*      
-      <TouchableOpacity
-        style={styles.resetButton}
-        onPress={handleResetAll}
-      >
-        <Text style={styles.resetButtonText}>Reset All Records (Debug)</Text>
-      </TouchableOpacity>
-      */}
-
-      {isLocalLoading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#0000ff" />
-          <Text style={styles.loadingText}>Loading local payments...</Text>
-        </View>
-      ) : (
-        <FlatList
-          data={groupedPayments}
-          ListHeaderComponent={renderLocalPayments}
-          renderItem={renderMonthSection}
-          keyExtractor={item => item.title}
-          contentContainerStyle={styles.listContainer}
-          ListFooterComponent={
-            isApiLoading ? (
-              <View style={styles.apiLoadingContainer}>
-                <ActivityIndicator size="small" color="#0000ff" />
-                <Text style={styles.apiLoadingText}>Loading online payments...</Text>
+    <FlatList
+      data={groupedPayments}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={refreshData} />
+      }
+      ListHeaderComponent={
+        <View style={styles.headerContainer}>
+          <TouchableOpacity
+            style={styles.balanceCard}
+            onPress={toggleBalanceVisibility}
+            activeOpacity={0.6}
+          >
+            <View style={styles.balanceHeader}>
+              <Text style={styles.balanceTitle}>Overall Balance</Text>
+              <Ionicons
+                name={isBalanceVisible ? "eye-outline" : "eye-off-outline"}
+                size={28}
+                color="#666"
+              />
+            </View>
+            {isApiLoading ? (
+              <View style={styles.balanceLoadingContainer}>
+                <ActivityIndicator size="small" color="#666" />
+                <Text style={styles.balanceLoadingText}>Loading balance...</Text>
               </View>
-            ) : null
-          }
-        />
-      )}
-    </View>
+            ) : (
+              <>
+                <Text style={styles.balanceAmount}>
+                  {isBalanceVisible ? formatBalance(totalBalance) : '•••••'}
+                </Text>
+                <Text style={styles.balanceSubtitle}>
+                  {isBalanceVisible
+                    ? <BalanceSummaryText balance={totalBalance} />
+                    : '***'}
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
+          {renderLocalPayments()}
+        </View>
+      }
+      renderItem={renderMonthSection}
+      keyExtractor={item => item.title}
+      contentContainerStyle={styles.listContainer}
+      ListFooterComponent={
+        isApiLoading ? (
+          <View style={styles.apiLoadingContainer}>
+            <ActivityIndicator size="small" color="#0000ff" />
+            <Text style={styles.apiLoadingText}>Loading online payments...</Text>
+          </View>
+        ) : null
+      }
+    />
   );
 };
 
@@ -788,10 +787,6 @@ const styles = StyleSheet.create({
   balanceSubtitle: {
     fontSize: 14,
     color: '#666',
-  },
-  listContainer: {
-    paddingHorizontal: 16,
-    paddingBottom: 20,
   },
   monthSection: {
     marginBottom: 0,
@@ -941,6 +936,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff8dc',
     borderRadius: 12,
     padding: 16,
+    marginHorizontal: 10,
     marginBottom: 5,
     borderWidth: 1,
     borderColor: '#ffd700',
@@ -1002,6 +998,14 @@ const styles = StyleSheet.create({
     color: '#666',
     fontWeight: '500',
     marginLeft: 4,
+  },
+  headerContainer: {
+    marginHorizontal: -18,
+    paddingTop: 5,
+  },
+  listContainer: {
+    paddingHorizontal: 16,
+    paddingBottom: 20,
   },
 });
 
