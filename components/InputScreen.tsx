@@ -315,7 +315,7 @@ const InputScreen: React.FC = () => {
 
       // First attempt
       try {
-        await APIService.savePayment(paymentData, 3000);
+        await APIService.savePayment(paymentData, 2000);
         uploadSuccess = true;
       } catch (error) {
         console.error('First upload attempt failed:', error);
