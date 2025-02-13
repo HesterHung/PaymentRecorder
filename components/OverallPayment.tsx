@@ -37,6 +37,8 @@ const OverallPayment: React.FC = () => {
   const [retryingPayments, setRetryingPayments] = useState<{ [key: string]: boolean }>({});
   const [refreshing, setRefreshing] = useState(false); // RefreshControl state
   const [queuedPayments, setQueuedPayments] = useState<Set<string>>(new Set());
+  const [lastUpdated, setLastUpdated] = useState<number | null>(null);
+  const [isOffline, setIsOffline] = useState(false);
 
   // Track app state changes
   const appState = useRef<AppStateStatus>(AppState.currentState);
@@ -151,6 +153,14 @@ const OverallPayment: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
+  useEffect(() => {
+    const loadLastUpdated = async () => {
+      const timestamp = await StorageUtils.getLastUpdated();
+      setLastUpdated(timestamp);
+    };
+    loadLastUpdated();
+  }, []);
+
   useFocusEffect(
     React.useCallback(() => {
       const loadData = async () => {
@@ -181,6 +191,18 @@ const OverallPayment: React.FC = () => {
       [monthTitle]: !prev[monthTitle]
     }));
   };
+
+  const formatLastUpdated = (timestamp: number | null): string => {
+    if (!timestamp) return 'Never';
+    return new Date(timestamp).toLocaleString('en-GB', {
+      day: '2-digit',
+      month: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    });
+  };
+
 
   const renderLocalPayments = () => {
     if (!localPayments.size) return null;
@@ -252,6 +274,11 @@ const OverallPayment: React.FC = () => {
     setIsApiLoading(true);
     try {
       const onlineReceipts = await APIService.getPayments();
+      const currentTime = Date.now();
+      await StorageUtils.setLastUpdated(currentTime);
+      setLastUpdated(currentTime);
+      setIsOffline(false);
+
       const localReceipts = await StorageUtils.getStoredPayments();
 
       const onlineSummary = calculatePaymentBalance(onlineReceipts);
@@ -285,6 +312,11 @@ const OverallPayment: React.FC = () => {
 
     } catch (error) {
       console.error('Error loading API receipts:', error);
+      setIsOffline(true);
+
+      const lastUpdatedTime = await StorageUtils.getLastUpdated();
+      setLastUpdated(lastUpdatedTime);
+
       Toast.show({
         type: 'error',
         text1: 'Error',
@@ -761,6 +793,11 @@ const OverallPayment: React.FC = () => {
               </>
             )}
           </TouchableOpacity>
+          <View style={styles.lastUpdatedContainer}>
+            <Text style={styles.lastUpdatedText}>
+              {isOffline ? 'Offline -' : 'Last updated:'} {formatLastUpdated(lastUpdated)}
+            </Text>
+          </View>
 
           {/* Add Debug Reset Button */}
           <TouchableOpacity
@@ -809,7 +846,7 @@ const styles = StyleSheet.create({
   },
   balanceCard: {
     margin: 16,
-    marginBottom: 20,
+    marginBottom: 0,
     padding: 20,
     backgroundColor: 'white',
     borderRadius: 16,
@@ -982,7 +1019,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff8dc',
     borderRadius: 12,
     padding: 16,
-    marginHorizontal: 10,
+    marginHorizontal: 12,
     marginBottom: 5,
     borderWidth: 1,
     borderColor: '#ffd700',
@@ -1072,6 +1109,18 @@ const styles = StyleSheet.create({
   uploadButtonQueued: {
     backgroundColor: '#f0f0f0',
     opacity: 0.8,
+  },
+  lastUpdatedContainer: {
+    marginTop: 0,
+    paddingTop: 5,
+  },
+  lastUpdatedText: {
+    fontSize: 12,
+    alignSelf: 'flex-end',
+    color: '#666',
+    textAlign: 'center',
+    paddingBottom: 15,
+    paddingRight: 25,
   },
 });
 

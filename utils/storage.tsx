@@ -12,7 +12,26 @@ const UPLOAD_QUEUE_KEY = 'upload_queue';
 
 export class StorageUtils {
 
+  static LAST_UPDATED_KEY = 'lastUpdated';
 
+  static async setLastUpdated(timestamp: number): Promise<void> {
+    try {
+      await AsyncStorage.setItem(this.LAST_UPDATED_KEY, timestamp.toString());
+    } catch (error) {
+      console.error('Error saving last updated:', error);
+    }
+  }
+  
+  static async getLastUpdated(): Promise<number | null> {
+    try {
+      const timestamp = await AsyncStorage.getItem(this.LAST_UPDATED_KEY);
+      return timestamp ? parseInt(timestamp, 10) : null;
+    } catch (error) {
+      console.error('Error getting last updated:', error);
+      return null;
+    }
+  }
+  
   static async setRetryStatus(paymentId: string, isRetrying: boolean) {
     try {
       const currentStatus = await AsyncStorage.getItem(RETRY_STATUS_KEY);
