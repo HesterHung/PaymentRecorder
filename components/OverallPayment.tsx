@@ -1,6 +1,6 @@
 //components/OverallPayment.tsx
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Text, StyleSheet, FlatList, Dimensions, TouchableOpacity, Platform, UIManager, LayoutAnimation, ActivityIndicator, AppState, AppStateStatus, RefreshControl, Modal, Pressable } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Dimensions, TouchableOpacity, Platform, UIManager, LayoutAnimation, ActivityIndicator, AppState, AppStateStatus, RefreshControl, Modal, Pressable, ScrollView } from 'react-native';
 import { StorageUtils, UploadHistoryEntry } from '../utils/storage';
 import { Ionicons } from '@expo/vector-icons';
 import { Payment, GroupedPayments, CONSTANTS } from '../types/payment';
@@ -154,6 +154,7 @@ const OverallPayment: React.FC = () => {
       if (!isMounted) return;
 
       try {
+
         // Get both statuses in parallel
         const [queue, retryStatus] = await Promise.all([
           StorageUtils.getUploadQueue(),
@@ -693,54 +694,98 @@ const OverallPayment: React.FC = () => {
 
   const handlePaymentUpload = async (payment: Payment) => {
     try {
-      // Set retrying state for this specific payment
+      // Check if there are any retrying payments or queued payments
+      const [retryStatus, currentQueue] = await Promise.all([
+        StorageUtils.getRetryStatus(),
+        StorageUtils.getUploadQueue()
+      ]);
+
+      const isAnyRetrying = Object.values(retryStatus).some(status => status === true);
+      const hasQueuedPayments = currentQueue.length > 0;
+
+      // If there are retrying or queued payments, add this payment to queue
+      if (isAnyRetrying || hasQueuedPayments) {
+        await StorageUtils.addToUploadQueue(payment.id);
+
+        // Update UI state for queued payments
+        setQueuedPayments(prev => {
+          const next = new Set(prev);
+          next.add(payment.id);
+          return next;
+        });
+
+        Toast.show({
+          type: 'info',
+          text1: 'Payment Queued',
+          text2: 'Your payment will be uploaded when current uploads complete',
+        });
+
+        return;
+      }
+
+      // If no retrying or queued payments, proceed with upload
       setRetryingPayments(prev => ({
         ...prev,
         [payment.id]: true
       }));
 
-      // Upload to server
-      await APIService.savePayment({
+      const paymentData = {
         title: payment.title,
         whoPaid: payment.whoPaid,
         amount: payment.amount,
-        amountType: payment.amountType as 'total' | 'specify',
+        amountType: payment.amountType,
         paymentDatetime: payment.paymentDatetime
-      });
+      };
 
-      // Remove from local storage
+      await new Promise(resolve => setTimeout(resolve, 15000));
+      await APIService.savePayment(paymentData, 30000);
+
+      // If successful, remove from local storage and retry status
       await StorageUtils.deletePayment(payment.id);
+      await StorageUtils.setRetryStatus(payment.id, false);
 
-      // Update local payments state
-      setLocalPayments(prev => {
-        const next = new Set(prev);
-        next.delete(payment.id);
-        return next;
+      const formattedTime = new Date(payment.paymentDatetime).toLocaleString([], {
+        year: 'numeric',
+        day: '2-digit',
+        month: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
       });
 
       Toast.show({
         type: 'success',
         text1: 'Success',
-        text2: 'Payment uploaded successfully'
+        text2: `${payment.title || 'Untitled'} (${formattedTime}) uploaded successfully`
       });
 
-      // Refresh both local and API data
-      await loadLocalReceipts();
-      await loadApiReceipts();
+      // Process next queued item if any
+      const queue = await StorageUtils.getUploadQueue();
+      if (queue.length > 0) {
+        const nextPaymentId = queue[0];
+        await StorageUtils.removeFromUploadQueue(nextPaymentId);
+        await StorageUtils.setRetryStatus(nextPaymentId, true);
+        const nextPayment = (await StorageUtils.getStoredPayments()).find(p => p.id === nextPaymentId);
+        if (nextPayment) {
+          handlePaymentUpload(nextPayment);
+        }
+      }
+
+      emitter.emit('paymentsUpdated');
 
     } catch (error) {
-      console.error('Error uploading payment:', error);
-      Toast.show({
-        type: 'error',
-        text1: 'Error',
-        text2: 'Failed to upload payment. Please try again later.'
-      });
-    } finally {
-      // Clear retrying state for this payment
-      setRetryingPayments(prev => ({
-        ...prev,
-        [payment.id]: false
-      }));
+      console.error('Upload retry failed:', error);
+
+      // Schedule another retry
+      await StorageUtils.setRetryStatus(payment.id, false);
+      setTimeout(async () => {
+        const isStillLocal = (await StorageUtils.getStoredPayments()).some(p => p.id === payment.id);
+        if (isStillLocal) {
+          await StorageUtils.setRetryStatus(payment.id, true);
+          handlePaymentUpload(payment);
+        }
+      }, 12000);
     }
   };
 
@@ -822,7 +867,7 @@ const OverallPayment: React.FC = () => {
                 isQueued && styles.uploadButtonQueued
               ]}
               onPress={() => handlePaymentUpload(item)}
-              disabled={isRetrying || isQueued}
+              disabled={isRetrying || isQueued} // Disable button if retrying or queued
             >
               {isRetrying ? (
                 <>
@@ -845,7 +890,7 @@ const OverallPayment: React.FC = () => {
         </View>
       </TouchableOpacity>
     );
-  }, [localPayments, retryingPayments, queuedPayments, handlePaymentUpload, handlePaymentPress, handleLongPress]);
+  }, [localPayments, retryingPayments, queuedPayments, handlePaymentUpload]);
 
   const renderMonthSection = ({ item }: { item: GroupedPayments }) => {
     if (isApiLoading && isInitialLoad) {
@@ -960,58 +1005,63 @@ const OverallPayment: React.FC = () => {
       animationType="fade"
       onRequestClose={() => setIsHistoryModalVisible(false)}
     >
-      <Pressable
-        style={styles.modalOverlay}
-        onPress={() => setIsHistoryModalVisible(false)}
-      >
-        <Pressable
-          style={styles.modalContent}
-          onPress={e => e.stopPropagation()}
-        >
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Upload History</Text>
-            <TouchableOpacity
-              onPress={() => setIsHistoryModalVisible(false)}
-              style={styles.closeButton}
-            >
-              <Ionicons name="close" size={24} color="#666" />
-            </TouchableOpacity>
-          </View>
-
-          {uploadHistory.length === 0 ? (
-            <View style={styles.emptyHistoryContainer}>
-              <Ionicons name="time-outline" size={48} color="#ccc" />
-              <Text style={styles.emptyHistoryText}>No upload history yet</Text>
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalWrapper}>
+          <View>
+            {/* Fixed Header */}
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Upload History</Text>
+              <TouchableOpacity
+                onPress={() => setIsHistoryModalVisible(false)}
+                style={styles.closeButton}
+              >
+                <Ionicons name="close" size={24} color="#666" />
+              </TouchableOpacity>
             </View>
-          ) : (
-            <FlatList
-              data={uploadHistory}
-              keyExtractor={(item, index) => `${item.paymentId}-${index}`}
-              renderItem={({ item }) => (
-                <View style={styles.historyItem}>
-                  <View style={styles.historyHeader}>
-                    <Text style={styles.historyTitle}>{item.paymentTitle}</Text>
-                    <Text style={[
-                      styles.historyStatus,
-                      { color: item.status === 'success' ? '#4CAF50' : '#F44336' }
-                    ]}>
-                      {item.status === 'success' ? 'Success' : 'Failed'}
-                    </Text>
-                  </View>
-                  <Text style={styles.historyAmount}>${item.amount.toFixed(2)}</Text>
-                  <Text style={styles.historyTimestamp}>
-                    {new Date(item.timestamp).toLocaleString()}
-                  </Text>
-                  {item.error && (
-                    <Text style={styles.historyError}>{item.error}</Text>
-                  )}
+
+            {/* Scrollable Content */}
+            <View style={styles.modalBody}>
+              {isHistoryLoading ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="large" color="#666" />
                 </View>
+              ) : uploadHistory.length === 0 ? (
+                <View style={styles.emptyHistoryContainer}>
+                  <Ionicons name="time-outline" size={48} color="#ccc" />
+                  <Text style={styles.emptyHistoryText}>No upload history yet</Text>
+                </View>
+              ) : (
+                <ScrollView
+                  style={styles.scrollView}
+                  contentContainerStyle={styles.scrollViewContent}
+                  showsVerticalScrollIndicator={true}
+                >
+                  {uploadHistory.map((item, index) => (
+                    <View key={`${item.paymentId}-${index}`} style={styles.historyItem}>
+                      <View style={styles.historyHeader}>
+                        <Text style={styles.historyTitle}>{item.paymentTitle}</Text>
+                        <Text style={[
+                          styles.historyStatus,
+                          { color: item.status === 'success' ? '#4CAF50' : '#F44336' }
+                        ]}>
+                          {item.status === 'success' ? 'Success' : 'Failed'}
+                        </Text>
+                      </View>
+                      <Text style={styles.historyAmount}>${item.amount.toFixed(2)}</Text>
+                      <Text style={styles.historyTimestamp}>
+                        {new Date(item.timestamp).toLocaleString()}
+                      </Text>
+                      {item.error && (
+                        <Text style={styles.historyError}>{item.error}</Text>
+                      )}
+                    </View>
+                  ))}
+                </ScrollView>
               )}
-              contentContainerStyle={styles.historyList}
-            />
-          )}
-        </Pressable>
-      </Pressable>
+            </View>
+          </View>
+        </View>
+      </View>
     </Modal>
   ));
 
@@ -1419,32 +1469,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
-  },
-  modalContent: {
-    backgroundColor: 'white',
-    borderRadius: 20,
-    width: '90%',
-    maxHeight: '70%',
-    maxWidth: 400,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-    backfaceVisibility: 'hidden', // Add this line
-    transform: [{ perspective: 1000 }], // Add this line
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
   },
   modalTitle: {
     fontSize: 18,
@@ -1453,9 +1477,6 @@ const styles = StyleSheet.create({
   },
   closeButton: {
     padding: 4,
-  },
-  historyList: {
-    padding: 16,
   },
   historyItem: {
     backgroundColor: '#f8f8f8',
@@ -1524,8 +1545,51 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingRight: 16,
     paddingTop: 5,
-    paddingBottom: 15,
+    paddingBottom: 0,
   },
+
+  modalScrollContent: {
+    flex: 1,
+  },
+  modalScrollContentContainer: {
+    flexGrow: 1,
+  },
+  historyList: {
+    padding: 5,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+    backgroundColor: 'white', // Ensure header is opaque
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+  },
+  modalBody: {
+    paddingVertical: 0,
+    paddingHorizontal: 0,
+    margin: 0,
+  },
+
+  scrollView: {
+    padding: 0,
+  },
+
+  scrollViewContent: {
+    padding: 10,
+  },
+  modalWrapper: {
+    width: '80%',
+    maxWidth: 400,
+    maxHeight: '60%',
+    borderRadius: 20,
+    backgroundColor: 'white',
+    overflow: 'hidden',
+  },
+
 });
 
 export default OverallPayment;

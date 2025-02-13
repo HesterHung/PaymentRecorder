@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, TextInput, ScrollView, Image, StyleSheet, TouchableOpacity, Text, Alert, GestureResponderEvent, Platform, BackHandler, ActivityIndicator, AppState } from 'react-native';
+import { View, TextInput, ScrollView, Image, StyleSheet, TouchableOpacity, Text, Alert, GestureResponderEvent, Platform, BackHandler, ActivityIndicator, AppState, AppStateStatus } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -35,6 +35,50 @@ const InputScreen: React.FC = () => {
   // Add a ref to store the timeout ID
   const retryTimeoutRef = useRef<NodeJS.Timeout>();
   const retryInProgressRef = useRef(false); // Add this to track retry state
+
+  useEffect(() => {
+    const handleAppStateChange = async (nextAppState: AppStateStatus) => {
+      if (nextAppState === 'inactive' || nextAppState === 'background') {
+        // Clear any ongoing retry attempt
+        if (retryTimeoutRef.current) {
+          clearTimeout(retryTimeoutRef.current);
+          retryTimeoutRef.current = undefined;
+        }
+
+        // If there was a retry in progress, clean it up
+        if (retryInProgressRef.current) {
+          retryInProgressRef.current = false;
+          try {
+            const payments = await StorageUtils.getStoredPayments();
+            const localPayment = payments[payments.length - 1];
+            if (localPayment?.id) {
+              await StorageUtils.setRetryStatus(localPayment.id, false);
+              await StorageUtils.addUploadHistory({
+                paymentId: localPayment.id,
+                timestamp: Date.now(),
+                status: 'failed',
+                paymentTitle: localPayment.title,
+                amount: localPayment.amount,
+                error: 'Upload interrupted - App terminated'
+              });
+            }
+          } catch (error) {
+            console.error('Error cleaning up retry status:', error);
+          }
+        }
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+
+    return () => {
+      subscription.remove();
+      // Perform cleanup on unmount
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Clear the timeout when component unmounts or when navigating away
   useEffect(() => {
@@ -373,7 +417,7 @@ const InputScreen: React.FC = () => {
 
       try {
         // First attempt to upload directly
-        await APIService.savePayment(paymentData, 10);
+        await APIService.savePayment(paymentData, 1500);
 
         const formattedTime = new Date(date.getTime()).toLocaleString('en-GB', {
           day: '2-digit',
@@ -480,6 +524,7 @@ const InputScreen: React.FC = () => {
         amountType: payment.amountType,
         paymentDatetime: payment.paymentDatetime,
       };
+
       await APIService.savePayment(paymentData, 30000);
 
       // If successful, remove from local storage and retry status

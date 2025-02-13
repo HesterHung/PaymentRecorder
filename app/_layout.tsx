@@ -15,6 +15,8 @@ import { registerBackgroundPrefetchTask } from './hooks/backgroundPrefetch';
 import { registerBackgroundRetryTask } from './hooks/backgroundRetryUpload';
 import APIService from '@/services/api';
 import { emitter } from '@/hooks/eventEmitter';
+import { StorageUtils } from '@/utils/storage';
+import { AppState, AppStateStatus } from 'react-native';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -38,7 +40,7 @@ export default function RootLayout() {
     async function fetchData() {
       try {
         const payments = await APIService.getPayments();
-        console.log('API fetched on launch. Payments count:', payments.length);        
+        console.log('API fetched on launch. Payments count:', payments.length);
       } catch (error) {
         console.error('Error fetching API on launch:', error instanceof Error ? error.message : error);
       }
@@ -52,6 +54,50 @@ export default function RootLayout() {
     registerBackgroundPrefetchTask();
     // Register the background retry upload task
     registerBackgroundRetryTask();
+  }, []);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', async (nextAppState) => {
+      // Check if app is moving to background or inactive state
+      if (nextAppState === 'inactive' || nextAppState === 'background') {
+        console.log('App moving to background/inactive state');
+        try {
+          await StorageUtils.cleanupOnTerminate();
+        } catch (error) {
+          console.error('Error during app state cleanup:', error);
+        }
+      }
+    });
+
+    // Cleanup subscription on unmount
+    return () => {
+      subscription.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleAppStateChange = async (nextAppState: AppStateStatus) => {
+      if (nextAppState === 'inactive' || nextAppState === 'background') {
+        console.log('App moving to background/inactive state');
+        try {
+          await StorageUtils.cleanupOnTerminate();
+          console.log('Cleanup completed');
+        } catch (error) {
+          console.error('Error during app state cleanup:', error);
+        }
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+
+    // Cleanup subscription on unmount
+    return () => {
+      subscription.remove();
+      // Perform final cleanup
+      StorageUtils.cleanupOnTerminate().catch(error => {
+        console.error('Error during final cleanup:', error);
+      });
+    };
   }, []);
 
   // Now conditionally render the UI. All hooks are always called.

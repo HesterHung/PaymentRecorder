@@ -81,8 +81,13 @@ export const registerBackgroundRetryTask = async (): Promise<void> => {
 
 export const unregisterBackgroundRetryTask = async (): Promise<void> => {
   try {
+    // Unregister the background task
     await BackgroundFetch.unregisterTaskAsync(TASK_NAME);
-    console.log('Background retry upload task unregistered.');
+
+    // Perform cleanup
+    await StorageUtils.cleanupOnTerminate();
+
+    console.log('Background retry upload task unregistered and cleaned up.');
   } catch (error) {
     console.error(
       'Error unregistering background retry upload task:',

@@ -27,6 +27,38 @@ export class StorageUtils {
   static LAST_UPDATED_KEY = 'lastUpdated';
   static LAST_API_PAYMENTS_KEY = 'lastApiPayments';
 
+  static async cleanupOnTerminate(): Promise<void> {
+    try {
+      // Get all payments that are in retry status
+      const retryStatus = await this.getRetryStatus();
+      const payments = await this.getStoredPayments();
+
+      // Add history entries for payments that were being processed
+      const retryingPayments = payments.filter(p => retryStatus[p.id]);
+      for (const payment of retryingPayments) {
+        await this.addUploadHistory({
+          paymentId: payment.id,
+          timestamp: Date.now(),
+          status: 'failed',
+          paymentTitle: payment.title,
+          amount: payment.amount,
+          error: 'Upload interrupted - App terminated'
+        });
+      }
+
+      // Clear retry statuses
+      await AsyncStorage.removeItem(RETRY_STATUS_KEY);
+
+      // Clear upload queue
+      await AsyncStorage.removeItem(UPLOAD_QUEUE_KEY);
+
+      console.log('Cleanup completed successfully');
+    } catch (error) {
+      console.error('Error during cleanup:', error);
+      throw error; // Re-throw the error to be caught by the caller
+    }
+  }
+
   static async addUploadHistory(entry: UploadHistoryEntry): Promise<void> {
     try {
       const history = await this.getUploadHistory();
@@ -38,7 +70,7 @@ export class StorageUtils {
       console.error('Error adding upload history:', error);
     }
   }
-  
+
   static async getUploadHistory(): Promise<UploadHistoryEntry[]> {
     try {
       const history = await AsyncStorage.getItem(STORAGE_KEYS.UPLOAD_HISTORY);
@@ -121,7 +153,7 @@ export class StorageUtils {
       return [];
     }
   }
-  
+
   static async setRetryStatus(paymentId: string, isRetrying: boolean) {
     try {
       const currentStatus = await AsyncStorage.getItem(RETRY_STATUS_KEY);
