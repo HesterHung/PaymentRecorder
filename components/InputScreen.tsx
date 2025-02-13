@@ -62,6 +62,7 @@ const InputScreen: React.FC = () => {
               await StorageUtils.addUploadHistory({
                 paymentId: localPayment.id,
                 timestamp: Date.now(),
+                paymentDatetime: localPayment.paymentDatetime,
                 status: 'failed',
                 paymentTitle: localPayment.title,
                 amount: localPayment.amount,
@@ -532,7 +533,6 @@ const InputScreen: React.FC = () => {
         amountType: payment.amountType,
         paymentDatetime: payment.paymentDatetime,
       };
-
       await APIService.savePayment(paymentData, 30000);
 
       // If successful, remove from local storage and retry status

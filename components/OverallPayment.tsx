@@ -98,24 +98,6 @@ const OverallPayment: React.FC = () => {
     return true;
   };
 
-  // Use AppState to refresh data when the app becomes active from background.
-  useEffect(() => {
-    const subscription = AppState.addEventListener('change', nextAppState => {
-      if (
-        appState.current.match(/inactive|background/) &&
-        nextAppState === 'active'
-      ) {
-        console.log('App has come to the foreground; refreshing data.');
-        loadLocalReceipts();
-        loadApiReceipts();
-      }
-      appState.current = nextAppState;
-    });
-
-    return () => {
-      subscription.remove();
-    };
-  }, []);
 
   useEffect(() => {
     const subscription = emitter.addListener('paymentsUpdated', async () => {
@@ -193,7 +175,7 @@ const OverallPayment: React.FC = () => {
     checkStatuses();
 
     // Check every 5 seconds
-    const intervalId = setInterval(checkStatuses, 5000);
+    const intervalId = setInterval(checkStatuses, 3000);
 
     return () => {
       isMounted = false;
@@ -714,17 +696,17 @@ const OverallPayment: React.FC = () => {
 
   const handlePaymentUpload = async (payment: Payment) => {
     try {
-      // Check if there are any retrying payments or queued payments
-      const [retryStatus, currentQueue] = await Promise.all([
-        StorageUtils.getRetryStatus(),
-        StorageUtils.getUploadQueue()
-      ]);
+      // First check if this specific payment is already being processed
+      if (retryingPayments[payment.id] || queuedPayments.has(payment.id)) {
+        console.log('Payment is already being processed or queued');
+        return;
+      }
 
-      const isAnyRetrying = Object.values(retryStatus).some(status => status === true);
-      const hasQueuedPayments = currentQueue.length > 0;
+      // Check if ANY payment is currently being processed
+      const isAnyProcessing = Object.values(retryingPayments).some(status => status === true);
 
-      // If there are retrying or queued payments, add this payment to queue
-      if (isAnyRetrying || hasQueuedPayments) {
+      // If any payment is processing or there are queued payments, add to queue
+      if (isAnyProcessing || queuedPayments.size > 0) {
         await StorageUtils.addToUploadQueue(payment.id);
 
         // Update UI state for queued payments
@@ -744,7 +726,7 @@ const OverallPayment: React.FC = () => {
         return;
       }
 
-      // If no retrying or queued payments, proceed with upload
+      // If no payments are processing, proceed with upload
       setRetryingPayments(prev => ({
         ...prev,
         [payment.id]: true
@@ -757,13 +739,18 @@ const OverallPayment: React.FC = () => {
         amountType: payment.amountType,
         paymentDatetime: payment.paymentDatetime
       };
-
-      await new Promise(resolve => setTimeout(resolve, 15000));
       await APIService.savePayment(paymentData, 30000);
 
       // If successful, remove from local storage and retry status
       await StorageUtils.deletePayment(payment.id);
       await StorageUtils.setRetryStatus(payment.id, false);
+
+      // Clear this payment's retry status
+      setRetryingPayments(prev => {
+        const next = { ...prev };
+        delete next[payment.id];
+        return next;
+      });
 
       const formattedTime = new Date(payment.paymentDatetime).toLocaleString([], {
         year: 'numeric',
@@ -782,14 +769,23 @@ const OverallPayment: React.FC = () => {
         position: 'bottom',
       });
 
-      // Process next queued item if any
+      // After successful upload, process next queued item if any
       const queue = await StorageUtils.getUploadQueue();
       if (queue.length > 0) {
         const nextPaymentId = queue[0];
+        // Remove from queue before processing
         await StorageUtils.removeFromUploadQueue(nextPaymentId);
-        await StorageUtils.setRetryStatus(nextPaymentId, true);
-        const nextPayment = (await StorageUtils.getStoredPayments()).find(p => p.id === nextPaymentId);
+        setQueuedPayments(prev => {
+          const next = new Set(prev);
+          next.delete(nextPaymentId);
+          return next;
+        });
+
+        const nextPayment = (await StorageUtils.getStoredPayments())
+          .find(p => p.id === nextPaymentId);
+
         if (nextPayment) {
+          // Process next payment in queue
           handlePaymentUpload(nextPayment);
         }
       }
@@ -799,12 +795,30 @@ const OverallPayment: React.FC = () => {
     } catch (error) {
       console.error('Upload retry failed:', error);
 
-      // Schedule another retry
+      // Clear retry status for this payment
+      setRetryingPayments(prev => {
+        const next = { ...prev };
+        delete next[payment.id];
+        return next;
+      });
+
       await StorageUtils.setRetryStatus(payment.id, false);
+
+      await StorageUtils.addUploadHistory({
+        paymentId: payment.id,
+        timestamp: Date.now(),
+        paymentDatetime: payment.paymentDatetime, // Make sure this is included
+        paymentTitle: payment.title,
+        amount: payment.amount,
+        status: 'failed',
+        error: error instanceof Error ? error.message : 'Upload Failed'
+      });
+
+      // Schedule another retry
       setTimeout(async () => {
-        const isStillLocal = (await StorageUtils.getStoredPayments()).some(p => p.id === payment.id);
+        const isStillLocal = (await StorageUtils.getStoredPayments())
+          .some(p => p.id === payment.id);
         if (isStillLocal) {
-          await StorageUtils.setRetryStatus(payment.id, true);
           handlePaymentUpload(payment);
         }
       }, 12000);
@@ -1030,7 +1044,6 @@ const OverallPayment: React.FC = () => {
       <View style={styles.modalOverlay}>
         <View>
           <View style={styles.modalContent}>
-            {/* Fixed Header */}
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Background Upload History</Text>
               <TouchableOpacity
@@ -1041,7 +1054,6 @@ const OverallPayment: React.FC = () => {
               </TouchableOpacity>
             </View>
 
-            {/* Scrollable Content */}
             <View style={styles.modalBody}>
               {isHistoryLoading ? (
                 <View style={styles.loadingContainer}>
@@ -1070,9 +1082,16 @@ const OverallPayment: React.FC = () => {
                         </Text>
                       </View>
                       <Text style={styles.historyAmount}>${item.amount.toFixed(2)}</Text>
-                      <Text style={styles.historyTimestamp}>
-                        {new Date(item.timestamp).toLocaleString()}
-                      </Text>
+                      <View style={styles.historyTimeContainer}>
+                        <Text style={styles.historyTimestamp}>
+                          Created: {item.paymentDatetime
+                            ? new Date(item.paymentDatetime).toLocaleString()
+                            : 'Date not available'}
+                        </Text>
+                        <Text style={styles.historyTimestamp}>
+                          Upload Attempt: {new Date(item.timestamp).toLocaleString()}
+                        </Text>
+                      </View>
                       {item.error && (
                         <Text style={styles.historyError}>{item.error}</Text>
                       )}
@@ -1086,6 +1105,50 @@ const OverallPayment: React.FC = () => {
       </View>
     </Modal>
   ));
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', async (nextAppState) => {
+      if (
+        (appState.current === 'active' &&
+          (nextAppState === 'background' || nextAppState === 'inactive'))
+      ) {
+        // App is going to background
+        console.log('App going to background - pausing uploads');
+        try {
+          await StorageUtils.handleAppBackground();
+          // Update UI states
+          setRetryingPayments({});
+          const queue = await StorageUtils.getUploadQueue();
+          setQueuedPayments(new Set(queue));
+        } catch (error) {
+          console.error('Error handling background transition:', error);
+        }
+      } else if (
+        (appState.current.match(/inactive|background/) &&
+          nextAppState === 'active')
+      ) {
+        // App is coming to foreground
+        console.log('App coming to foreground - resuming uploads');
+        try {
+          const nextPaymentId = await StorageUtils.handleAppForeground();
+          if (nextPaymentId) {
+            const payments = await StorageUtils.getStoredPayments();
+            const paymentToProcess = payments.find(p => p.id === nextPaymentId);
+            if (paymentToProcess) {
+              handlePaymentUpload(paymentToProcess);
+            }
+          }
+        } catch (error) {
+          console.error('Error handling foreground transition:', error);
+        }
+      }
+      appState.current = nextAppState;
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [handlePaymentUpload]);
 
   return (
     <FlatList
@@ -1149,9 +1212,7 @@ const OverallPayment: React.FC = () => {
             </Text>
           </View>
           <HistoryModal />
-          {/* 
           <TouchableOpacity onPress={handleResetAll} style={styles.debugResetButton}></TouchableOpacity>
-          */}
           {renderLocalPayments()}
         </View>
       }
@@ -1609,6 +1670,9 @@ const styles = StyleSheet.create({
   },
   scrollViewContent: {
     padding: 0,
+  },
+  historyTimeContainer: {
+    marginTop: 4,
   },
 });
 

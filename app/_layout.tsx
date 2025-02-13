@@ -80,26 +80,25 @@ export default function RootLayout() {
       if (nextAppState === 'inactive' || nextAppState === 'background') {
         console.log('App moving to background/inactive state');
         try {
-          await StorageUtils.cleanupOnTerminate();
-          console.log('Cleanup completed');
+          await StorageUtils.handleAppBackground();
+          console.log('Background handling completed');
         } catch (error) {
-          console.error('Error during app state cleanup:', error);
+          console.error('Error during background handling:', error);
         }
       }
     };
 
     const subscription = AppState.addEventListener('change', handleAppStateChange);
 
-    // Cleanup subscription on unmount
     return () => {
       subscription.remove();
       // Perform final cleanup
-      StorageUtils.cleanupOnTerminate().catch(error => {
+      StorageUtils.handleAppBackground().catch(error => {
         console.error('Error during final cleanup:', error);
       });
     };
   }, []);
-
+  
   // Now conditionally render the UI. All hooks are always called.
   if (!loaded) {
     return null;

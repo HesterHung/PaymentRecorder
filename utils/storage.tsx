@@ -15,7 +15,8 @@ const UPLOAD_QUEUE_KEY = 'upload_queue';
 
 export interface UploadHistoryEntry {
   paymentId: string;
-  timestamp: number;
+  timestamp: number;          // When the upload attempt occurred
+  paymentDatetime: number;    // When the payment was created
   status: 'success' | 'failed';
   paymentTitle: string;
   amount: number;
@@ -27,35 +28,51 @@ export class StorageUtils {
   static LAST_UPDATED_KEY = 'lastUpdated';
   static LAST_API_PAYMENTS_KEY = 'lastApiPayments';
 
-  static async cleanupOnTerminate(): Promise<void> {
+  static async handleAppBackground(): Promise<void> {
     try {
-      // Get all payments that are in retry status
       const retryStatus = await this.getRetryStatus();
-      const payments = await this.getStoredPayments();
+      const retryingPaymentIds = Object.keys(retryStatus).filter(id => retryStatus[id]);
 
-      // Add history entries for payments that were being processed
-      const retryingPayments = payments.filter(p => retryStatus[p.id]);
-      for (const payment of retryingPayments) {
-        await this.addUploadHistory({
-          paymentId: payment.id,
-          timestamp: Date.now(),
-          status: 'failed',
-          paymentTitle: payment.title,
-          amount: payment.amount,
-          error: 'Upload interrupted - App terminated'
-        });
+      const payments = await this.getStoredPayments();
+      for (const paymentId of retryingPaymentIds) {
+        await this.setRetryStatus(paymentId, false);
+        await this.addToUploadQueue(paymentId);
+
+        const payment = payments.find(p => p.id === paymentId);
+        if (payment) {
+          await this.addUploadHistory({
+            paymentId: payment.id,
+            timestamp: Date.now(),
+            paymentDatetime: payment.paymentDatetime, // Make sure this is included
+            status: 'failed',
+            paymentTitle: payment.title || 'Untitled',
+            amount: payment.amount,
+            error: 'Upload paused - App went to background'
+          });
+        }
       }
 
-      // Clear retry statuses
-      await AsyncStorage.removeItem(RETRY_STATUS_KEY);
-
-      // Clear upload queue
-      await AsyncStorage.removeItem(UPLOAD_QUEUE_KEY);
-
-      console.log('Cleanup completed successfully');
+      console.log('Background handling completed');
     } catch (error) {
-      console.error('Error during cleanup:', error);
-      throw error; // Re-throw the error to be caught by the caller
+      console.error('Error handling background state:', error);
+      throw error;
+    }
+  }
+
+  static async handleAppForeground(): Promise<string | null> {  // Changed return type
+    try {
+      // Get the upload queue
+      const queue = await this.getUploadQueue();
+      if (queue.length > 0) {
+        // Process first queued payment
+        const firstPaymentId = queue[0];
+        await this.removeFromUploadQueue(firstPaymentId);
+        return firstPaymentId;
+      }
+      return null;
+    } catch (error) {
+      console.error('Error handling foreground state:', error);
+      throw error;
     }
   }
 
