@@ -8,15 +8,46 @@ const STORAGE_KEYS = {
   PENDING_UPLOADS: 'pending_uploads',
   API_PAYMENTS: 'api_payments', // New key for API-fetched payments
   LAST_API_PAYMENTS: 'last_api_payments', // New key for last fetched API data
-
+  UPLOAD_HISTORY: 'upload_history'
 };
 const RETRY_STATUS_KEY = '@retry_status';
 const UPLOAD_QUEUE_KEY = 'upload_queue';
+
+export interface UploadHistoryEntry {
+  paymentId: string;
+  timestamp: number;
+  status: 'success' | 'failed';
+  paymentTitle: string;
+  amount: number;
+  error?: string;
+}
 
 export class StorageUtils {
 
   static LAST_UPDATED_KEY = 'lastUpdated';
   static LAST_API_PAYMENTS_KEY = 'lastApiPayments';
+
+  static async addUploadHistory(entry: UploadHistoryEntry): Promise<void> {
+    try {
+      const history = await this.getUploadHistory();
+      history.unshift(entry); // Add new entry at the beginning
+      // Keep only last 50 entries
+      const trimmedHistory = history.slice(0, 50);
+      await AsyncStorage.setItem(STORAGE_KEYS.UPLOAD_HISTORY, JSON.stringify(trimmedHistory));
+    } catch (error) {
+      console.error('Error adding upload history:', error);
+    }
+  }
+  
+  static async getUploadHistory(): Promise<UploadHistoryEntry[]> {
+    try {
+      const history = await AsyncStorage.getItem(STORAGE_KEYS.UPLOAD_HISTORY);
+      return history ? JSON.parse(history) : [];
+    } catch (error) {
+      console.error('Error getting upload history:', error);
+      return [];
+    }
+  }
 
   static async storeApiPayments(payments: Payment[]): Promise<void> {
     try {

@@ -28,15 +28,30 @@ TaskManager.defineTask(
             amountType: payment.amountType,
             paymentDatetime: payment.paymentDatetime,
           });
-          // On successful upload, remove the payment from local storage
+
+          // Add success entry to history
+          await StorageUtils.addUploadHistory({
+            paymentId: payment.id,
+            timestamp: Date.now(),
+            status: 'success',
+            paymentTitle: payment.title,
+            amount: payment.amount
+          });
+
           await StorageUtils.deletePayment(payment.id);
           await StorageUtils.setRetryStatus(payment.id, false);
-
-          console.log(`Payment ${payment.paymentDatetime} successfully uploaded in background.`);
           emitter.emit('paymentsUpdated');
+
         } catch (uploadError) {
-          console.error(`Background upload failed for payment ${payment.id}:`, uploadError);
-          // Keep the payment for future retry attempts.
+          // Add failure entry to history
+          await StorageUtils.addUploadHistory({
+            paymentId: payment.id,
+            timestamp: Date.now(),
+            status: 'failed',
+            paymentTitle: payment.title,
+            amount: payment.amount,
+            error: uploadError instanceof Error ? uploadError.message : 'Unknown error'
+          });
         }
       }
       return BackgroundFetch.BackgroundFetchResult.NewData;

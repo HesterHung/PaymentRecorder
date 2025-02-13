@@ -79,8 +79,8 @@ export class APIService {
         } catch (error: unknown) {
             if (error instanceof Error) {
                 if (error.name === 'AbortError') {
-                    console.error('Request timed out after 10 seconds');
-                    throw new Error('Request timed out after 10 seconds');
+                    console.error('Request timed out ');
+                    throw new Error('Request timed out');
                 }
                 console.error('Full error details:', error);
                 throw error;

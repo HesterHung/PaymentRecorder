@@ -1,7 +1,7 @@
 //components/OverallPayment.tsx
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Text, StyleSheet, FlatList, Dimensions, TouchableOpacity, Platform, UIManager, LayoutAnimation, ActivityIndicator, AppState, AppStateStatus, RefreshControl } from 'react-native';
-import { StorageUtils } from '../utils/storage';
+import { View, Text, StyleSheet, FlatList, Dimensions, TouchableOpacity, Platform, UIManager, LayoutAnimation, ActivityIndicator, AppState, AppStateStatus, RefreshControl, Modal, Pressable } from 'react-native';
+import { StorageUtils, UploadHistoryEntry } from '../utils/storage';
 import { Ionicons } from '@expo/vector-icons';
 import { Payment, GroupedPayments, CONSTANTS } from '../types/payment';
 import { Alert } from 'react-native';
@@ -42,7 +42,9 @@ const OverallPayment: React.FC = () => {
   const [isOffline, setIsOffline] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [lastFetchedData, setLastFetchedData] = useState<GroupedPayments[]>([]);
-
+  const [isHistoryModalVisible, setIsHistoryModalVisible] = useState(false);
+  const [uploadHistory, setUploadHistory] = useState<UploadHistoryEntry[]>([]);
+  const [isHistoryLoading, setIsHistoryLoading] = useState(false); // Add this
   // Track app state changes
   const appState = useRef<AppStateStatus>(AppState.currentState);
 
@@ -73,24 +75,15 @@ const OverallPayment: React.FC = () => {
     loadLastFetchedData();
   }, []);
 
-  useEffect(() => {
-    const checkQueueStatus = async () => {
-      try {
-        const queue = await StorageUtils.getUploadQueue();
-        setQueuedPayments(new Set(queue));
-      } catch (error) {
-        console.error('Error checking queue status:', error);
-      }
-    };
 
-    // Check initially
-    checkQueueStatus();
 
-    // Check periodically
-    const intervalId = setInterval(checkQueueStatus, 2000);
-
-    return () => clearInterval(intervalId);
-  }, []);
+  const areQueuesEqual = (a: Set<string>, b: Set<string>): boolean => {
+    if (a.size !== b.size) return false;
+    for (const item of a) {
+      if (!b.has(item)) return false;
+    }
+    return true;
+  };
 
   // Use AppState to refresh data when the app becomes active from background.
   useEffect(() => {
@@ -120,36 +113,7 @@ const OverallPayment: React.FC = () => {
     return () => subscription.remove();
   }, []);
 
-  useEffect(() => {
-    let isMounted = true;
-    const checkRetryStatus = async () => {
-      if (!isMounted) return;
 
-      try {
-        const status = await StorageUtils.getRetryStatus();
-        setRetryingPayments(prevStatus => {
-          // Only update if the status has actually changed
-          if (JSON.stringify(prevStatus) !== JSON.stringify(status)) {
-            return status;
-          }
-          return prevStatus;
-        });
-      } catch (error) {
-        console.error('Error checking retry status:', error);
-      }
-    };
-
-    // Check initially
-    checkRetryStatus();
-
-    // Check periodically
-    const intervalId = setInterval(checkRetryStatus, 2000);
-
-    return () => {
-      isMounted = false;
-      clearInterval(intervalId);
-    };
-  }, []);
 
   useEffect(() => {
     const fetchLocalPayments = async () => {
@@ -184,12 +148,72 @@ const OverallPayment: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    let isMounted = true;
+
+    const checkStatuses = async () => {
+      if (!isMounted) return;
+
+      try {
+        // Get both statuses in parallel
+        const [queue, retryStatus] = await Promise.all([
+          StorageUtils.getUploadQueue(),
+          StorageUtils.getRetryStatus()
+        ]);
+
+        // Update queue status if changed
+        setQueuedPayments(prevQueue => {
+          const newQueue = new Set(queue);
+          return areQueuesEqual(prevQueue, newQueue) ? prevQueue : newQueue;
+        });
+
+        // Update retry status if changed
+        setRetryingPayments(prevStatus => {
+          if (JSON.stringify(prevStatus) !== JSON.stringify(retryStatus)) {
+            return retryStatus;
+          }
+          return prevStatus;
+        });
+      } catch (error) {
+        console.error('Error checking statuses:', error);
+      }
+    };
+
+    // Check initially
+    checkStatuses();
+
+    // Check every 5 seconds
+    const intervalId = setInterval(checkStatuses, 5000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(intervalId);
+    };
+  }, []);
+
+  useEffect(() => {
     const loadLastUpdated = async () => {
       const timestamp = await StorageUtils.getLastUpdated();
       setLastUpdated(timestamp);
     };
     loadLastUpdated();
   }, []);
+
+  useEffect(() => {
+    console.log("HI")
+
+    const loadHistory = async () => {
+      const history = await StorageUtils.getUploadHistory();
+      setUploadHistory(history);
+    };
+
+    // Load history initially
+    loadHistory();
+
+    // Set up an interval to update history periodically
+    const intervalId = setInterval(loadHistory, 10000);
+
+    return () => clearInterval(intervalId);
+  }, []); // Empty dependency array means this only runs once on mount
 
   useFocusEffect(
     React.useCallback(() => {
@@ -283,6 +307,27 @@ const OverallPayment: React.FC = () => {
     </View>
   );
 
+  const handleHistoryButtonPress = async () => {
+    if (!isHistoryModalVisible) {  // Only load if modal isn't already visible
+      try {
+        setIsHistoryLoading(true);
+        const history = await StorageUtils.getUploadHistory();
+        setUploadHistory(history);
+        setIsHistoryModalVisible(true);
+      } catch (error) {
+        console.error('Error loading history:', error);
+        Toast.show({
+          type: 'error',
+          text1: 'Error',
+          text2: 'Failed to load upload history'
+        });
+      } finally {
+        setIsHistoryLoading(false);
+      }
+    } else {
+      setIsHistoryModalVisible(true);
+    }
+  };
 
   const refreshData = async () => {
     setRefreshing(true);
@@ -908,6 +953,67 @@ const OverallPayment: React.FC = () => {
     return item.title;
   };
 
+  const HistoryModal = React.memo(() => (
+    <Modal
+      visible={isHistoryModalVisible}
+      transparent
+      animationType="fade"
+      onRequestClose={() => setIsHistoryModalVisible(false)}
+    >
+      <Pressable
+        style={styles.modalOverlay}
+        onPress={() => setIsHistoryModalVisible(false)}
+      >
+        <Pressable
+          style={styles.modalContent}
+          onPress={e => e.stopPropagation()}
+        >
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Upload History</Text>
+            <TouchableOpacity
+              onPress={() => setIsHistoryModalVisible(false)}
+              style={styles.closeButton}
+            >
+              <Ionicons name="close" size={24} color="#666" />
+            </TouchableOpacity>
+          </View>
+
+          {uploadHistory.length === 0 ? (
+            <View style={styles.emptyHistoryContainer}>
+              <Ionicons name="time-outline" size={48} color="#ccc" />
+              <Text style={styles.emptyHistoryText}>No upload history yet</Text>
+            </View>
+          ) : (
+            <FlatList
+              data={uploadHistory}
+              keyExtractor={(item, index) => `${item.paymentId}-${index}`}
+              renderItem={({ item }) => (
+                <View style={styles.historyItem}>
+                  <View style={styles.historyHeader}>
+                    <Text style={styles.historyTitle}>{item.paymentTitle}</Text>
+                    <Text style={[
+                      styles.historyStatus,
+                      { color: item.status === 'success' ? '#4CAF50' : '#F44336' }
+                    ]}>
+                      {item.status === 'success' ? 'Success' : 'Failed'}
+                    </Text>
+                  </View>
+                  <Text style={styles.historyAmount}>${item.amount.toFixed(2)}</Text>
+                  <Text style={styles.historyTimestamp}>
+                    {new Date(item.timestamp).toLocaleString()}
+                  </Text>
+                  {item.error && (
+                    <Text style={styles.historyError}>{item.error}</Text>
+                  )}
+                </View>
+              )}
+              contentContainerStyle={styles.historyList}
+            />
+          )}
+        </Pressable>
+      </Pressable>
+    </Modal>
+  ));
 
   return (
     <FlatList
@@ -957,7 +1063,19 @@ const OverallPayment: React.FC = () => {
             <Text style={styles.lastUpdatedText}>
               {isOffline ? 'Offline -' : isApiLoading ? 'Updating... Last updated:' : 'Last updated:'} {formatLastUpdated(lastUpdated)}
             </Text>
+            <TouchableOpacity
+              onPress={handleHistoryButtonPress}
+              style={styles.historyButton}
+              disabled={isHistoryLoading}
+            >
+              {isHistoryLoading ? (
+                <ActivityIndicator size="small" color="#666" />
+              ) : (
+                <Ionicons name="time-outline" size={24} color="#666" />
+              )}
+            </TouchableOpacity>
           </View>
+          <HistoryModal />
           {/* 
           <TouchableOpacity onPress={handleResetAll} style={styles.debugResetButton}></TouchableOpacity>
           */}
@@ -1249,15 +1367,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#f0f0f0',
     opacity: 0.8,
   },
-  lastUpdatedContainer: {
-    marginTop: 0,
-    paddingTop: 5,
-  },
   lastUpdatedText: {
     fontSize: 12,
     alignSelf: 'flex-end',
     color: '#666',
-    textAlign: 'center',
+    textAlign: 'right',
     paddingBottom: 15,
     paddingRight: 25,
   },
@@ -1287,7 +1401,6 @@ const styles = StyleSheet.create({
     height: 16,
     width: 100,
   },
-
   skeletonAnimation: {
     position: 'absolute',
     top: 0,
@@ -1300,6 +1413,118 @@ const styles = StyleSheet.create({
   balanceLoadingContainer: {
     minHeight: 80,
     justifyContent: 'center',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    borderRadius: 20,
+    width: '90%',
+    maxHeight: '70%',
+    maxWidth: 400,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+    backfaceVisibility: 'hidden', // Add this line
+    transform: [{ perspective: 1000 }], // Add this line
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+  },
+  closeButton: {
+    padding: 4,
+  },
+  historyList: {
+    padding: 16,
+  },
+  historyItem: {
+    backgroundColor: '#f8f8f8',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  historyHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  historyTitle: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#333',
+    flex: 1,
+    marginRight: 8,
+  },
+  historyStatus: {
+    fontSize: 14,
+    fontWeight: '500',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  historyAmount: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 4,
+  },
+  historyTimestamp: {
+    fontSize: 12,
+    color: '#888',
+  },
+  historyError: {
+    fontSize: 12,
+    color: '#F44336',
+    marginTop: 4,
+    fontStyle: 'italic',
+  },
+  historyButton: {
+    padding: 8,
+    position: 'absolute',
+    right: 16,
+    width: 40, // Add fixed width to prevent shifting
+    height: 40, // Add fixed height to prevent shifting
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyHistoryContainer: {
+    padding: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyHistoryText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+  },
+  lastUpdatedContainer: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    paddingRight: 16,
+    paddingTop: 5,
+    paddingBottom: 15,
   },
 });
 

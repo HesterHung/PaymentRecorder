@@ -373,7 +373,7 @@ const InputScreen: React.FC = () => {
 
       try {
         // First attempt to upload directly
-        await APIService.savePayment(paymentData, 2000);
+        await APIService.savePayment(paymentData, 10);
 
         const formattedTime = new Date(date.getTime()).toLocaleString('en-GB', {
           day: '2-digit',
@@ -480,7 +480,6 @@ const InputScreen: React.FC = () => {
         amountType: payment.amountType,
         paymentDatetime: payment.paymentDatetime,
       };
-
       await APIService.savePayment(paymentData, 30000);
 
       // If successful, remove from local storage and retry status
