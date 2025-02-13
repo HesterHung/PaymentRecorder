@@ -1006,8 +1006,8 @@ const OverallPayment: React.FC = () => {
       onRequestClose={() => setIsHistoryModalVisible(false)}
     >
       <View style={styles.modalOverlay}>
-        <View style={styles.modalWrapper}>
-          <View>
+        <View>
+          <View style={styles.modalContent}>
             {/* Fixed Header */}
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Upload History</Text>
@@ -1481,6 +1481,8 @@ const styles = StyleSheet.create({
   historyItem: {
     backgroundColor: '#f8f8f8',
     padding: 12,
+    paddingLeft: 30,
+    paddingRight: 30,
     borderRadius: 8,
     marginBottom: 8,
   },
@@ -1525,8 +1527,8 @@ const styles = StyleSheet.create({
     right: 16,
     width: 40, // Add fixed width to prevent shifting
     height: 40, // Add fixed height to prevent shifting
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: 'flex-start',
+    justifyContent: 'flex-start',
   },
   emptyHistoryContainer: {
     padding: 32,
@@ -1541,13 +1543,31 @@ const styles = StyleSheet.create({
   },
   lastUpdatedContainer: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
+    justifyContent: 'space-evenly',
     alignItems: 'center',
     paddingRight: 16,
     paddingTop: 5,
-    paddingBottom: 0,
+    paddingBottom: 15,
   },
-
+  modalContent: {
+    backgroundColor: 'white',
+    borderRadius: 20,
+    width: '90%',
+    maxHeight: '80%', // Increased max height
+    maxWidth: 400,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+    backfaceVisibility: 'hidden',
+    transform: [{ perspective: 5000 }],
+    marginHorizontal: 0,
+    paddingBottom: 70,
+  },
   modalScrollContent: {
     flex: 1,
   },
@@ -1555,7 +1575,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
   historyList: {
-    padding: 5,
+    padding: 0,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -1570,24 +1590,16 @@ const styles = StyleSheet.create({
   },
   modalBody: {
     paddingVertical: 0,
-    paddingHorizontal: 0,
+    paddingHorizontal: 20,
     margin: 0,
   },
 
   scrollView: {
-    padding: 0,
+    padding: 10,
   },
 
   scrollViewContent: {
     padding: 10,
-  },
-  modalWrapper: {
-    width: '80%',
-    maxWidth: 400,
-    maxHeight: '60%',
-    borderRadius: 20,
-    backgroundColor: 'white',
-    overflow: 'hidden',
   },
 
 });
