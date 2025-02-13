@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, TextInput, ScrollView, Image, StyleSheet, TouchableOpacity, Text, Alert, GestureResponderEvent, Platform, BackHandler, ActivityIndicator } from 'react-native';
+import { View, TextInput, ScrollView, Image, StyleSheet, TouchableOpacity, Text, Alert, GestureResponderEvent, Platform, BackHandler, ActivityIndicator, AppState } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -32,6 +32,39 @@ const InputScreen: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const totalAmountRef = useRef<TextInput>(null);
   const specificAmountRef = useRef<TextInput>(null);
+  // Add a ref to store the timeout ID
+  const retryTimeoutRef = useRef<NodeJS.Timeout>();
+  const retryInProgressRef = useRef(false); // Add this to track retry state
+
+  // Clear the timeout when component unmounts or when navigating away
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', nextAppState => {
+      // When app goes to background
+      if (nextAppState === 'background') {
+        // Clear any ongoing retry attempt
+        if (retryTimeoutRef.current) {
+          clearTimeout(retryTimeoutRef.current);
+          retryTimeoutRef.current = undefined;
+        }
+
+        // If there was a retry in progress, clean it up
+        if (retryInProgressRef.current) {
+          retryInProgressRef.current = false;
+          // Find and update the retry status of the payment
+          StorageUtils.getStoredPayments().then(payments => {
+            const localPayment = payments[payments.length - 1]; // Get the most recent payment
+            if (localPayment?.id) {
+              StorageUtils.setRetryStatus(localPayment.id, false);
+            }
+          }).catch(console.error);
+        }
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
 
   useEffect(() => {
     const loadUsers = async () => {
@@ -316,7 +349,7 @@ const InputScreen: React.FC = () => {
 
       // First attempt for upload
       try {
-        await APIService.savePayment(paymentData, 2000);
+        await APIService.savePayment(paymentData, 10);
         uploadSuccess = true;
 
         // In case a copy of this payment exists locally, remove it
@@ -332,8 +365,8 @@ const InputScreen: React.FC = () => {
       } catch (error) {
         console.error('First upload attempt failed:', error);
 
-        if (!retryInProgress) {
-          retryInProgress = true;
+        if (!retryInProgressRef.current) {
+          retryInProgressRef.current = true;
           // Save locally if first attempt fails
           await StorageUtils.savePayment(paymentData);
 
@@ -345,19 +378,16 @@ const InputScreen: React.FC = () => {
           );
 
           if (localPayment?.id) {
-            // Set retry status
             await StorageUtils.setRetryStatus(localPayment.id, true);
 
-            // Single retry attempt after 500ms
-            setTimeout(async () => {
+            retryTimeoutRef.current = setTimeout(async () => {
               try {
-                const retryResponse = await APIService.savePayment(paymentData, 25000);
-                // Check if the payment was already uploaded successfully
+                await new Promise(resolve => setTimeout(resolve, 12000));
+                const retryResponse = await APIService.savePayment(paymentData, 30000);
                 const currentLocalPayments = await StorageUtils.getStoredPayments();
                 const paymentStillExists = currentLocalPayments.some(p => p.id === localPayment.id);
 
                 if (paymentStillExists) {
-                  // If successful, remove from local storage
                   await StorageUtils.deletePayment(localPayment.id);
                   await StorageUtils.setRetryStatus(localPayment.id, false);
                   Toast.show({
@@ -366,7 +396,6 @@ const InputScreen: React.FC = () => {
                     text2: 'Payment uploaded successfully via retry.',
                     position: 'bottom',
                   });
-                  // Emit an event to notify OverallPayment to re-get new data
                   emitter.emit('paymentsUpdated');
                 }
                 router.push("/(tabs)/overall-payment");
@@ -380,7 +409,8 @@ const InputScreen: React.FC = () => {
                 });
                 await StorageUtils.setRetryStatus(localPayment.id, false);
               } finally {
-                retryInProgress = false;
+                retryInProgressRef.current = false;
+                retryTimeoutRef.current = undefined;
               }
             }, 500);
           }

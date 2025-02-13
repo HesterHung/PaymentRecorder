@@ -726,6 +726,17 @@ const OverallPayment: React.FC = () => {
               </>
             )}
           </TouchableOpacity>
+
+          {/* Add Debug Reset Button */}
+          <TouchableOpacity
+            style={styles.debugResetButton}
+            onPress={handleResetAll}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="trash-outline" size={20} color="white" />
+            <Text style={styles.debugResetText}>Reset All Payments (Debug)</Text>
+          </TouchableOpacity>
+
           {renderLocalPayments()}
         </View>
       }
@@ -1006,6 +1017,22 @@ const styles = StyleSheet.create({
   listContainer: {
     paddingHorizontal: 16,
     paddingBottom: 20,
+  },
+  debugResetButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FF3B30',
+    marginHorizontal: 16,
+    marginBottom: 16,
+    padding: 12,
+    borderRadius: 8,
+    gap: 8,
+  },
+  debugResetText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });
 
