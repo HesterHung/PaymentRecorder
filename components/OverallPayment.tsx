@@ -41,9 +41,37 @@ const OverallPayment: React.FC = () => {
   const [lastUpdated, setLastUpdated] = useState<number | null>(null);
   const [isOffline, setIsOffline] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [lastFetchedData, setLastFetchedData] = useState<GroupedPayments[]>([]);
 
   // Track app state changes
   const appState = useRef<AppStateStatus>(AppState.currentState);
+
+  useEffect(() => {
+    const loadLastFetchedData = async () => {
+      try {
+        const lastApiPayments = await StorageUtils.getLastApiPayments();
+        if (lastApiPayments.length > 0) {
+          const summary = calculatePaymentBalance(lastApiPayments);
+          const groupedArray = Object.entries(summary.monthlyBalances)
+            .map(([title, data]) => ({
+              title,
+              data: data.payments.sort((a, b) => b.paymentDatetime - a.paymentDatetime),
+              totalAmount: data.balance
+            }))
+            .sort((a, b) => {
+              const dateA = new Date(a.data[0]?.paymentDatetime || 0);
+              const dateB = new Date(b.data[0]?.paymentDatetime || 0);
+              return dateB.getTime() - dateA.getTime();
+            });
+          setLastFetchedData(groupedArray);
+        }
+      } catch (error) {
+        console.error('Error loading last fetched data:', error);
+      }
+    };
+
+    loadLastFetchedData();
+  }, []);
 
   useEffect(() => {
     const checkQueueStatus = async () => {
@@ -353,19 +381,19 @@ const OverallPayment: React.FC = () => {
     setIsApiLoading(true);
     try {
       const onlineReceipts = await APIService.getPayments();
-      setIsInitialLoad(false);
       const currentTime = Date.now();
+
+      // Store the fetched data
+      await StorageUtils.storeLastApiPayments(onlineReceipts);
       await StorageUtils.setLastUpdated(currentTime);
-      await StorageUtils.storeApiPayments(onlineReceipts); // Store API payments
+
       setLastUpdated(currentTime);
       setIsOffline(false);
 
       const localReceipts = await StorageUtils.getStoredPayments();
-
       const onlineSummary = calculatePaymentBalance(onlineReceipts);
       setTotalBalance(onlineSummary.totalBalance);
 
-      // Create a map of online receipt IDs for faster lookup
       const onlineIds = new Set(onlineReceipts.map(p => p.id));
       const uniqueLocalReceipts = localReceipts.filter(p => !onlineIds.has(p.id));
       const allReceipts = [...onlineReceipts, ...uniqueLocalReceipts];
@@ -389,38 +417,13 @@ const OverallPayment: React.FC = () => {
           return dateB.getTime() - dateA.getTime();
         });
 
+      // Set both the current and last fetched data
       setGroupedPayments(groupedArray);
+      setLastFetchedData(groupedArray); // Add this line
 
     } catch (error) {
-      setIsInitialLoad(false);
       console.error('Error loading API receipts:', error);
       setIsOffline(true);
-
-      // When offline, load the last stored API payments
-      try {
-        const storedApiPayments = await StorageUtils.getApiPayments();
-        if (storedApiPayments.length > 0) {
-          const storedSummary = calculatePaymentBalance(storedApiPayments);
-          setTotalBalance(storedSummary.totalBalance);
-
-          const groupedArray = Object.entries(storedSummary.monthlyBalances)
-            .map(([title, data]) => ({
-              title,
-              data: data.payments.sort((a, b) => b.paymentDatetime - a.paymentDatetime),
-              totalAmount: data.balance
-            }))
-            .sort((a, b) => {
-              const dateA = new Date(a.data[0]?.paymentDatetime || 0);
-              const dateB = new Date(b.data[0]?.paymentDatetime || 0);
-              return dateB.getTime() - dateA.getTime();
-            });
-
-          setGroupedPayments(groupedArray);
-        }
-      } catch (storageError) {
-        console.error('Error loading stored API payments:', storageError);
-      }
-
       const lastUpdatedTime = await StorageUtils.getLastUpdated();
       setLastUpdated(lastUpdatedTime);
 
@@ -433,6 +436,7 @@ const OverallPayment: React.FC = () => {
       setIsApiLoading(false);
     }
   };
+
 
   const toggleBalanceVisibility = () => {
     setIsBalanceVisible(!isBalanceVisible);
@@ -907,7 +911,13 @@ const OverallPayment: React.FC = () => {
 
   return (
     <FlatList
-      data={isApiLoading && isInitialLoad ? getLoadingSkeletonData() : groupedPayments}
+      data={
+        isApiLoading && lastFetchedData.length > 0
+          ? lastFetchedData
+          : isApiLoading
+            ? getLoadingSkeletonData()
+            : groupedPayments
+      }
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={refreshData} />
       }
@@ -928,8 +938,7 @@ const OverallPayment: React.FC = () => {
             </View>
             {isApiLoading ? (
               <View style={styles.balanceLoadingContainer}>
-                <ActivityIndicator size="small" color="#666" />
-                <Text style={styles.balanceLoadingText}>Loading balance...</Text>
+                <ActivityIndicator size="large" color="#666" />
               </View>
             ) : (
               <>
@@ -946,25 +955,17 @@ const OverallPayment: React.FC = () => {
           </TouchableOpacity>
           <View style={styles.lastUpdatedContainer}>
             <Text style={styles.lastUpdatedText}>
-              {isOffline ? 'Offline -' : 'Last updated:'} {formatLastUpdated(lastUpdated)}
+              {isOffline ? 'Offline -' : isApiLoading ? 'Updating... Last updated:' : 'Last updated:'} {formatLastUpdated(lastUpdated)}
             </Text>
           </View>
-
-          {/* Add Debug Reset Button */}
-          <TouchableOpacity
-            style={styles.debugResetButton}
-            onPress={handleResetAll}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="trash-outline" size={20} color="white" />
-            <Text style={styles.debugResetText}>Reset All Payments (Debug)</Text>
-          </TouchableOpacity>
-
+          {/* 
+          <TouchableOpacity onPress={handleResetAll} style={styles.debugResetButton}></TouchableOpacity>
+          */}
           {renderLocalPayments()}
         </View>
       }
       renderItem={renderMonthSection}
-      keyExtractor={keyExtractor}
+      keyExtractor={(item) => item.title}
       contentContainerStyle={styles.listContainer}
     />
   );
@@ -1196,6 +1197,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     fontWeight: '500',
+    alignSelf: 'center'
   },
   uploadButton: {
     flexDirection: 'row',

@@ -30,7 +30,9 @@ TaskManager.defineTask(
           });
           // On successful upload, remove the payment from local storage
           await StorageUtils.deletePayment(payment.id);
-          console.log(`Payment ${payment.id} successfully uploaded in background.`);
+          await StorageUtils.setRetryStatus(payment.id, false);
+
+          console.log(`Payment ${payment.paymentDatetime} successfully uploaded in background.`);
           emitter.emit('paymentsUpdated');
         } catch (uploadError) {
           console.error(`Background upload failed for payment ${payment.id}:`, uploadError);

@@ -7,6 +7,8 @@ const STORAGE_KEYS = {
   PAYMENTS: 'payments',
   PENDING_UPLOADS: 'pending_uploads',
   API_PAYMENTS: 'api_payments', // New key for API-fetched payments
+  LAST_API_PAYMENTS: 'last_api_payments', // New key for last fetched API data
+
 };
 const RETRY_STATUS_KEY = '@retry_status';
 const UPLOAD_QUEUE_KEY = 'upload_queue';
@@ -67,17 +69,28 @@ export class StorageUtils {
     }
   }
 
+  static async storeLastApiPayments(payments: Payment[]): Promise<void> {
+    try {
+      await AsyncStorage.setItem(
+        STORAGE_KEYS.LAST_API_PAYMENTS,
+        JSON.stringify(payments)
+      );
+    } catch (error) {
+      console.error('Error storing last API payments:', error);
+      throw error;
+    }
+  }
+
   static async getLastApiPayments(): Promise<Payment[]> {
     try {
-      const paymentsJson = await AsyncStorage.getItem(this.LAST_API_PAYMENTS_KEY);
+      const paymentsJson = await AsyncStorage.getItem(STORAGE_KEYS.LAST_API_PAYMENTS);
       return paymentsJson ? JSON.parse(paymentsJson) : [];
     } catch (error) {
       console.error('Error getting last API payments:', error);
       return [];
     }
   }
-
-
+  
   static async setRetryStatus(paymentId: string, isRetrying: boolean) {
     try {
       const currentStatus = await AsyncStorage.getItem(RETRY_STATUS_KEY);
