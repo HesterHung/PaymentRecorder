@@ -23,6 +23,7 @@ if (Platform.OS === 'android') {
   }
 }
 
+
 const OverallPayment: React.FC = () => {
   const [isBalanceVisible, setIsBalanceVisible] = useState(false);
   const [groupedPayments, setGroupedPayments] = useState<GroupedPayments[]>([]);
@@ -39,6 +40,7 @@ const OverallPayment: React.FC = () => {
   const [queuedPayments, setQueuedPayments] = useState<Set<string>>(new Set());
   const [lastUpdated, setLastUpdated] = useState<number | null>(null);
   const [isOffline, setIsOffline] = useState(false);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
 
   // Track app state changes
   const appState = useRef<AppStateStatus>(AppState.currentState);
@@ -177,6 +179,83 @@ const OverallPayment: React.FC = () => {
     }, [])
   );
 
+  const getLoadingSkeletonData = (): GroupedPayments[] => [
+    {
+      title: 'Loading-Section-1', // Changed to be unique
+      data: [
+        {
+          id: 'loading-skeleton-1',
+          title: '',
+          whoPaid: users[0],
+          amount: 0,
+          amountType: 'total',
+          paymentDatetime: Date.now(),
+        },
+        {
+          id: 'loading-skeleton-2',
+          title: '',
+          whoPaid: users[0],
+          amount: 0,
+          amountType: 'total',
+          paymentDatetime: Date.now(),
+        }
+      ],
+      totalAmount: 0
+    },
+    {
+      title: 'Loading-Section-2', // Changed to be unique
+      data: [
+        {
+          id: 'loading-skeleton-3',
+          title: '',
+          whoPaid: users[0],
+          amount: 0,
+          amountType: 'total',
+          paymentDatetime: Date.now(),
+        }
+      ],
+      totalAmount: 0
+    }
+  ];
+
+  const LoadingPaymentItem = () => (
+    <View style={[styles.paymentItem, styles.loadingItem]}>
+      <View style={styles.paymentHeader}>
+        <View style={styles.dateTimeContainer}>
+          <View style={[styles.loadingPlaceholder, { width: 80 }]} />
+          <View style={[styles.loadingPlaceholder, { width: 60 }]} />
+        </View>
+        <View style={styles.amountSection}>
+          <View style={[styles.loadingPlaceholder, { width: 70, height: 30 }]} />
+        </View>
+      </View>
+      <View style={styles.paymentDetails}>
+        <View style={styles.paymentInfo}>
+          <View style={[styles.loadingPlaceholder, { width: 120, marginBottom: 8 }]} />
+          <View style={[styles.loadingPlaceholder, { width: 80 }]} />
+        </View>
+      </View>
+    </View>
+  );
+
+  const LoadingMonthSection = () => (
+    <View style={styles.monthSection}>
+      <View style={styles.monthHeader}>
+        <View style={styles.monthHeaderLeft}>
+          <Ionicons name="chevron-down" size={24} color="#ccc" />
+          <View style={[styles.loadingPlaceholder, { width: 100 }]} />
+        </View>
+        <View style={styles.monthTotalContainer}>
+          <View style={[styles.loadingPlaceholder, { width: 80 }]} />
+          <View style={[styles.loadingPlaceholder, { width: 60 }]} />
+        </View>
+      </View>
+      <LoadingPaymentItem />
+      <LoadingPaymentItem />
+    </View>
+  );
+
+
   const refreshData = async () => {
     setRefreshing(true);
     await loadLocalReceipts();
@@ -274,6 +353,7 @@ const OverallPayment: React.FC = () => {
     setIsApiLoading(true);
     try {
       const onlineReceipts = await APIService.getPayments();
+      setIsInitialLoad(false);
       const currentTime = Date.now();
       await StorageUtils.setLastUpdated(currentTime);
       await StorageUtils.storeApiPayments(onlineReceipts); // Store API payments
@@ -312,6 +392,7 @@ const OverallPayment: React.FC = () => {
       setGroupedPayments(groupedArray);
 
     } catch (error) {
+      setIsInitialLoad(false);
       console.error('Error loading API receipts:', error);
       setIsOffline(true);
 
@@ -718,6 +799,42 @@ const OverallPayment: React.FC = () => {
   }, [localPayments, retryingPayments, queuedPayments, handlePaymentUpload, handlePaymentPress, handleLongPress]);
 
   const renderMonthSection = ({ item }: { item: GroupedPayments }) => {
+    if (isApiLoading && isInitialLoad) {
+      return (
+        <View style={styles.monthSection}>
+          <View style={styles.monthHeader}>
+            <View style={styles.monthHeaderLeft}>
+              <Ionicons name="chevron-down" size={24} color="#ccc" />
+              <View style={[styles.loadingPlaceholder, { width: 100 }]} />
+            </View>
+            <View style={styles.monthTotalContainer}>
+              <View style={[styles.loadingPlaceholder, { width: 80 }]} />
+              <View style={[styles.loadingPlaceholder, { width: 60 }]} />
+            </View>
+          </View>
+          {item.data.map(payment => (
+            <View key={payment.id} style={[styles.paymentItem, styles.loadingItem]}>
+              <View style={styles.paymentHeader}>
+                <View style={styles.dateTimeContainer}>
+                  <View style={[styles.loadingPlaceholder, { width: 80 }]} />
+                  <View style={[styles.loadingPlaceholder, { width: 60 }]} />
+                </View>
+                <View style={styles.amountSection}>
+                  <View style={[styles.loadingPlaceholder, { width: 70, height: 30 }]} />
+                </View>
+              </View>
+              <View style={styles.paymentDetails}>
+                <View style={styles.paymentInfo}>
+                  <View style={[styles.loadingPlaceholder, { width: 120, marginBottom: 8 }]} />
+                  <View style={[styles.loadingPlaceholder, { width: 80 }]} />
+                </View>
+              </View>
+            </View>
+          ))}
+        </View>
+      );
+    }
+
     const isExpanded = expandedMonths[item.title] ?? true;
 
     // Filter out local payments from the month's data
@@ -780,9 +897,17 @@ const OverallPayment: React.FC = () => {
       }, 0);
   };
 
+  const keyExtractor = (item: GroupedPayments, index: number) => {
+    if (isApiLoading && isInitialLoad) {
+      return `loading-section-${index}`;
+    }
+    return item.title;
+  };
+
+
   return (
     <FlatList
-      data={groupedPayments}
+      data={isApiLoading && isInitialLoad ? getLoadingSkeletonData() : groupedPayments}
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={refreshData} />
       }
@@ -839,16 +964,8 @@ const OverallPayment: React.FC = () => {
         </View>
       }
       renderItem={renderMonthSection}
-      keyExtractor={item => item.title}
+      keyExtractor={keyExtractor}
       contentContainerStyle={styles.listContainer}
-      ListFooterComponent={
-        isApiLoading ? (
-          <View style={styles.apiLoadingContainer}>
-            <ActivityIndicator size="small" color="#0000ff" />
-            <Text style={styles.apiLoadingText}>Loading online payments...</Text>
-          </View>
-        ) : null
-      }
     />
   );
 };
@@ -1075,12 +1192,6 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   localPaymentItem: {},
-  balanceLoadingContainer: {
-    minHeight: 80,
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 8,
-  },
   balanceLoadingText: {
     fontSize: 14,
     color: '#666',
@@ -1147,6 +1258,46 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingBottom: 15,
     paddingRight: 25,
+  },
+  loadingItem: {
+    opacity: 0.7,
+  },
+
+  loadingPlaceholder: {
+    backgroundColor: '#E8E8E8',
+    borderRadius: 4,
+    height: 16,
+    overflow: 'hidden',
+  },
+
+  shimmerContainer: {
+    padding: 16,
+    gap: 8,
+  },
+
+  balanceLoadingPlaceholder: {
+    height: 32,
+    width: 150,
+    marginBottom: 8,
+  },
+
+  subtitleLoadingPlaceholder: {
+    height: 16,
+    width: 100,
+  },
+
+  skeletonAnimation: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#F5F5F5',
+  },
+
+  balanceLoadingContainer: {
+    minHeight: 80,
+    justifyContent: 'center',
   },
 });
 
