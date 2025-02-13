@@ -344,9 +344,36 @@ const InputScreen: React.FC = () => {
         paymentDatetime: date.getTime(),
       };
 
+      if (existingPayment) {
+        try {
+          await APIService.updatePayment(existingPayment.id, paymentData);
+
+          Toast.show({
+            type: 'success',
+            text1: 'Success',
+            text2: 'Payment updated successfully',
+            position: 'bottom',
+          });
+
+          resetForm();
+          router.push("/(tabs)/overall-payment");
+          emitter.emit('paymentsUpdated');
+          return;
+        } catch (error) {
+          console.error('Update failed:', error);
+          Toast.show({
+            type: 'error',
+            text1: 'Error',
+            text2: 'Failed to update payment. Please try again.',
+            position: 'bottom',
+          });
+          return;
+        }
+      }
+
       try {
         // First attempt to upload directly
-        await APIService.savePayment(paymentData, 10);
+        await APIService.savePayment(paymentData, 2000);
 
         const formattedTime = new Date(date.getTime()).toLocaleString('en-GB', {
           day: '2-digit',
@@ -466,7 +493,7 @@ const InputScreen: React.FC = () => {
         month: 'numeric',
         hour: '2-digit',
         minute: '2-digit',
-        second: '2-digit',      
+        second: '2-digit',
         hour12: false
       });
 

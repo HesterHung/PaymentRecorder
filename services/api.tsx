@@ -160,7 +160,7 @@ export class APIService {
                     amount: payment.amount,
                     amountType: payment.amountType,
                     paymentDatetime: payment.paymentDatetime,
-                    description: "Changed payment details"
+                    description: ""
                 }),
             });
 

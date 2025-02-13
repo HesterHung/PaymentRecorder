@@ -6,6 +6,7 @@ import { CONSTANTS, Payment } from '../types/payment';
 const STORAGE_KEYS = {
   PAYMENTS: 'payments',
   PENDING_UPLOADS: 'pending_uploads',
+  API_PAYMENTS: 'api_payments', // New key for API-fetched payments
 };
 const RETRY_STATUS_KEY = '@retry_status';
 const UPLOAD_QUEUE_KEY = 'upload_queue';
@@ -13,6 +14,29 @@ const UPLOAD_QUEUE_KEY = 'upload_queue';
 export class StorageUtils {
 
   static LAST_UPDATED_KEY = 'lastUpdated';
+  static LAST_API_PAYMENTS_KEY = 'lastApiPayments';
+
+  static async storeApiPayments(payments: Payment[]): Promise<void> {
+    try {
+      await AsyncStorage.setItem(
+        STORAGE_KEYS.API_PAYMENTS,
+        JSON.stringify(payments)
+      );
+    } catch (error) {
+      console.error('Error storing API payments:', error);
+      throw error;
+    }
+  }
+
+  static async getApiPayments(): Promise<Payment[]> {
+    try {
+      const paymentsJson = await AsyncStorage.getItem(STORAGE_KEYS.API_PAYMENTS);
+      return paymentsJson ? JSON.parse(paymentsJson) : [];
+    } catch (error) {
+      console.error('Error getting API payments:', error);
+      return [];
+    }
+  }
 
   static async setLastUpdated(timestamp: number): Promise<void> {
     try {
@@ -21,7 +45,7 @@ export class StorageUtils {
       console.error('Error saving last updated:', error);
     }
   }
-  
+
   static async getLastUpdated(): Promise<number | null> {
     try {
       const timestamp = await AsyncStorage.getItem(this.LAST_UPDATED_KEY);
@@ -31,7 +55,29 @@ export class StorageUtils {
       return null;
     }
   }
-  
+
+  static async setLastApiPayments(payments: Payment[]): Promise<void> {
+    try {
+      await AsyncStorage.setItem(
+        this.LAST_API_PAYMENTS_KEY,
+        JSON.stringify(payments)
+      );
+    } catch (error) {
+      console.error('Error saving last API payments:', error);
+    }
+  }
+
+  static async getLastApiPayments(): Promise<Payment[]> {
+    try {
+      const paymentsJson = await AsyncStorage.getItem(this.LAST_API_PAYMENTS_KEY);
+      return paymentsJson ? JSON.parse(paymentsJson) : [];
+    } catch (error) {
+      console.error('Error getting last API payments:', error);
+      return [];
+    }
+  }
+
+
   static async setRetryStatus(paymentId: string, isRetrying: boolean) {
     try {
       const currentStatus = await AsyncStorage.getItem(RETRY_STATUS_KEY);
@@ -73,7 +119,9 @@ export class StorageUtils {
         AsyncStorage.removeItem(CONSTANTS.STORAGE_KEYS.PAYMENTS),
         AsyncStorage.removeItem(CONSTANTS.STORAGE_KEYS.PENDING_UPLOADS),
         AsyncStorage.removeItem(RETRY_STATUS_KEY),  // Add this line
-        AsyncStorage.removeItem(UPLOAD_QUEUE_KEY)   // Add this line if you have a queue
+        AsyncStorage.removeItem(UPLOAD_QUEUE_KEY),   // Add this line if you have a queue
+        AsyncStorage.removeItem(this.LAST_UPDATED_KEY),
+        AsyncStorage.removeItem(STORAGE_KEYS.API_PAYMENTS), // Add this line
       ]);
     } catch (error) {
       console.error('Error clearing all payments:', error);

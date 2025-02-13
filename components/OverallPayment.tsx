@@ -276,6 +276,7 @@ const OverallPayment: React.FC = () => {
       const onlineReceipts = await APIService.getPayments();
       const currentTime = Date.now();
       await StorageUtils.setLastUpdated(currentTime);
+      await StorageUtils.storeApiPayments(onlineReceipts); // Store API payments
       setLastUpdated(currentTime);
       setIsOffline(false);
 
@@ -313,6 +314,31 @@ const OverallPayment: React.FC = () => {
     } catch (error) {
       console.error('Error loading API receipts:', error);
       setIsOffline(true);
+
+      // When offline, load the last stored API payments
+      try {
+        const storedApiPayments = await StorageUtils.getApiPayments();
+        if (storedApiPayments.length > 0) {
+          const storedSummary = calculatePaymentBalance(storedApiPayments);
+          setTotalBalance(storedSummary.totalBalance);
+
+          const groupedArray = Object.entries(storedSummary.monthlyBalances)
+            .map(([title, data]) => ({
+              title,
+              data: data.payments.sort((a, b) => b.paymentDatetime - a.paymentDatetime),
+              totalAmount: data.balance
+            }))
+            .sort((a, b) => {
+              const dateA = new Date(a.data[0]?.paymentDatetime || 0);
+              const dateB = new Date(b.data[0]?.paymentDatetime || 0);
+              return dateB.getTime() - dateA.getTime();
+            });
+
+          setGroupedPayments(groupedArray);
+        }
+      } catch (storageError) {
+        console.error('Error loading stored API payments:', storageError);
+      }
 
       const lastUpdatedTime = await StorageUtils.getLastUpdated();
       setLastUpdated(lastUpdatedTime);
