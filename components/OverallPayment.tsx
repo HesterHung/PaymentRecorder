@@ -1,10 +1,26 @@
-//components/OverallPayment.tsx
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Text, StyleSheet, FlatList, Dimensions, TouchableOpacity, Platform, UIManager, LayoutAnimation, ActivityIndicator, AppState, AppStateStatus, RefreshControl, Modal, Pressable, ScrollView } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  Dimensions,
+  TouchableOpacity,
+  Platform,
+  UIManager,
+  LayoutAnimation,
+  ActivityIndicator,
+  AppState,
+  AppStateStatus,
+  RefreshControl,
+  Modal,
+  Pressable,
+  ScrollView,
+  Alert
+} from 'react-native';
 import { StorageUtils, UploadHistoryEntry } from '../utils/storage';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { Payment, GroupedPayments, CONSTANTS } from '../types/payment';
-import { Alert } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import userStorage from '@/services/userStorage';
 import { BalanceSummaryText, calculatePaymentBalance, formatBalance } from '@/utils/paymentCalculator';
@@ -22,7 +38,6 @@ if (Platform.OS === 'android') {
     UIManager.setLayoutAnimationEnabledExperimental(true);
   }
 }
-
 
 const OverallPayment: React.FC = () => {
   const [isBalanceVisible, setIsBalanceVisible] = useState(false);
@@ -75,8 +90,6 @@ const OverallPayment: React.FC = () => {
     loadLastFetchedData();
   }, []);
 
-
-
   const areQueuesEqual = (a: Set<string>, b: Set<string>): boolean => {
     if (a.size !== b.size) return false;
     for (const item of a) {
@@ -112,8 +125,6 @@ const OverallPayment: React.FC = () => {
     });
     return () => subscription.remove();
   }, []);
-
-
 
   useEffect(() => {
     const fetchLocalPayments = async () => {
@@ -154,7 +165,6 @@ const OverallPayment: React.FC = () => {
       if (!isMounted) return;
 
       try {
-
         // Get both statuses in parallel
         const [queue, retryStatus] = await Promise.all([
           StorageUtils.getUploadQueue(),
@@ -320,7 +330,9 @@ const OverallPayment: React.FC = () => {
         Toast.show({
           type: 'error',
           text1: 'Error',
-          text2: 'Failed to load upload history'
+          text2: 'Failed to load upload history',
+          position: 'bottom',
+
         });
       } finally {
         setIsHistoryLoading(false);
@@ -350,12 +362,12 @@ const OverallPayment: React.FC = () => {
     return new Date(timestamp).toLocaleString('en-GB', {
       day: '2-digit',
       month: '2-digit',
+      year: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
       hour12: false
     });
   };
-
 
   const renderLocalPayments = () => {
     if (!localPayments.size) return null;
@@ -416,7 +428,8 @@ const OverallPayment: React.FC = () => {
       Toast.show({
         type: 'error',
         text1: 'Error',
-        text2: 'Failed to load local payments'
+        text2: 'Failed to load local payments',
+        position: 'bottom',
       });
     } finally {
       setIsLocalLoading(false);
@@ -476,13 +489,13 @@ const OverallPayment: React.FC = () => {
       Toast.show({
         type: 'error',
         text1: 'Error',
-        text2: 'Failed to load online payments'
+        text2: 'Failed to load online payments',
+        position: 'bottom',
       });
     } finally {
       setIsApiLoading(false);
     }
   };
-
 
   const toggleBalanceVisibility = () => {
     setIsBalanceVisible(!isBalanceVisible);
@@ -507,6 +520,7 @@ const OverallPayment: React.FC = () => {
         type: 'error',
         text1: 'Error',
         text2: 'Failed to navigate to edit screen',
+        position: 'bottom',
       });
     }
   };
@@ -559,7 +573,8 @@ const OverallPayment: React.FC = () => {
       Toast.show({
         type: 'error',
         text1: 'Error',
-        text2: 'Failed to load payments'
+        text2: 'Failed to load payments',
+        position: 'bottom',
       });
       setGroupedPayments([]);
       setTotalBalance(0);
@@ -602,14 +617,15 @@ const OverallPayment: React.FC = () => {
               Toast.show({
                 type: 'success',
                 text1: 'Success',
-                text2: 'Payment deleted successfully'
+                text2: 'Payment deleted successfully',
               });
             } catch (error) {
               console.error('Error deleting payment:', error);
               Toast.show({
                 type: 'error',
                 text1: 'Error',
-                text2: 'Failed to delete payment'
+                text2: 'Failed to delete payment',
+                position: 'bottom',
               });
             }
           }
@@ -636,7 +652,8 @@ const OverallPayment: React.FC = () => {
               Toast.show({
                 type: 'info',
                 text1: 'Deleting all records...',
-                text2: 'Please wait'
+                text2: 'Please wait',
+                position: 'bottom',
               });
 
               // Debug print before clearing
@@ -673,7 +690,9 @@ const OverallPayment: React.FC = () => {
               Toast.show({
                 type: 'success',
                 text1: 'Success',
-                text2: 'All payment records have been deleted'
+                text2: 'All payment records have been deleted',
+                position: 'bottom',
+
               });
 
             } catch (error) {
@@ -681,7 +700,8 @@ const OverallPayment: React.FC = () => {
               Toast.show({
                 type: 'error',
                 text1: 'Error',
-                text2: 'Failed to delete all records. Please try again.'
+                text2: 'Failed to delete all records. Please try again.',
+                position: 'bottom',
               });
             } finally {
               setIsLoading(false);
@@ -718,6 +738,7 @@ const OverallPayment: React.FC = () => {
           type: 'info',
           text1: 'Payment Queued',
           text2: 'Your payment will be uploaded when current uploads complete',
+          position: 'bottom',
         });
 
         return;
@@ -757,7 +778,8 @@ const OverallPayment: React.FC = () => {
       Toast.show({
         type: 'success',
         text1: 'Success',
-        text2: `${payment.title || 'Untitled'} (${formattedTime}) uploaded successfully`
+        text2: `${payment.title || 'Untitled'} (${formattedTime}) uploaded successfully`,
+        position: 'bottom',
       });
 
       // Process next queued item if any
@@ -1010,7 +1032,7 @@ const OverallPayment: React.FC = () => {
           <View style={styles.modalContent}>
             {/* Fixed Header */}
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Upload History</Text>
+              <Text style={styles.modalTitle}>Background Upload History</Text>
               <TouchableOpacity
                 onPress={() => setIsHistoryModalVisible(false)}
                 style={styles.closeButton}
@@ -1109,10 +1131,8 @@ const OverallPayment: React.FC = () => {
               </>
             )}
           </TouchableOpacity>
+          {/* Updated lastUpdatedContainer - history button is now on the left, text on the right */}
           <View style={styles.lastUpdatedContainer}>
-            <Text style={styles.lastUpdatedText}>
-              {isOffline ? 'Offline -' : isApiLoading ? 'Updating... Last updated:' : 'Last updated:'} {formatLastUpdated(lastUpdated)}
-            </Text>
             <TouchableOpacity
               onPress={handleHistoryButtonPress}
               style={styles.historyButton}
@@ -1121,9 +1141,12 @@ const OverallPayment: React.FC = () => {
               {isHistoryLoading ? (
                 <ActivityIndicator size="small" color="#666" />
               ) : (
-                <Ionicons name="time-outline" size={24} color="#666" />
+                <MaterialIcons name="manage-history" size={24} color="#666" />
               )}
             </TouchableOpacity>
+            <Text style={styles.lastUpdatedText}>
+              {isOffline ? 'Offline -' : isApiLoading ? 'Updating... Last updated:' : 'Last updated:'} {formatLastUpdated(lastUpdated)}
+            </Text>
           </View>
           <HistoryModal />
           {/* 
@@ -1417,36 +1440,43 @@ const styles = StyleSheet.create({
     backgroundColor: '#f0f0f0',
     opacity: 0.8,
   },
+  // Updated container: a row where the history button is on the left and the last updated text is on the right
+  lastUpdatedContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginHorizontal: 16,
+    marginVertical: 10,
+  },
   lastUpdatedText: {
     fontSize: 12,
-    alignSelf: 'flex-end',
     color: '#666',
     textAlign: 'right',
-    paddingBottom: 15,
-    paddingRight: 25,
+    flex: 1, // This lets the text expand and push itself to the right
+    paddingLeft: 10,
+  },
+  // Updated historyButton: removed absolute positioning and let it flow naturally
+  historyButton: {
+    padding: 8,
   },
   loadingItem: {
     opacity: 0.7,
   },
-
   loadingPlaceholder: {
     backgroundColor: '#E8E8E8',
     borderRadius: 4,
     height: 16,
     overflow: 'hidden',
   },
-
   shimmerContainer: {
     padding: 16,
     gap: 8,
   },
-
   balanceLoadingPlaceholder: {
     height: 32,
     width: 150,
     marginBottom: 8,
   },
-
   subtitleLoadingPlaceholder: {
     height: 16,
     width: 100,
@@ -1459,7 +1489,6 @@ const styles = StyleSheet.create({
     bottom: 0,
     backgroundColor: '#F5F5F5',
   },
-
   balanceLoadingContainer: {
     minHeight: 80,
     justifyContent: 'center',
@@ -1481,8 +1510,8 @@ const styles = StyleSheet.create({
   historyItem: {
     backgroundColor: '#f8f8f8',
     padding: 12,
-    paddingLeft: 30,
-    paddingRight: 30,
+    paddingLeft: 40,
+    paddingRight: 40,
     borderRadius: 8,
     marginBottom: 8,
   },
@@ -1521,15 +1550,6 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontStyle: 'italic',
   },
-  historyButton: {
-    padding: 8,
-    position: 'absolute',
-    right: 16,
-    width: 40, // Add fixed width to prevent shifting
-    height: 40, // Add fixed height to prevent shifting
-    alignItems: 'flex-start',
-    justifyContent: 'flex-start',
-  },
   emptyHistoryContainer: {
     padding: 32,
     alignItems: 'center',
@@ -1541,20 +1561,11 @@ const styles = StyleSheet.create({
     color: '#666',
     textAlign: 'center',
   },
-  lastUpdatedContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-evenly',
-    alignItems: 'center',
-    paddingRight: 16,
-    paddingTop: 5,
-    paddingBottom: 15,
-  },
   modalContent: {
     backgroundColor: 'white',
     borderRadius: 20,
     width: '90%',
     maxHeight: '80%', // Increased max height
-    maxWidth: 400,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -1589,19 +1600,16 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 20,
   },
   modalBody: {
-    paddingVertical: 0,
-    paddingHorizontal: 20,
-    margin: 0,
+    padding: 5,
+    paddingHorizontal: 0,
+    margin: 5,
   },
-
   scrollView: {
-    padding: 10,
+    padding: 20,
   },
-
   scrollViewContent: {
-    padding: 10,
+    padding: 0,
   },
-
 });
 
 export default OverallPayment;

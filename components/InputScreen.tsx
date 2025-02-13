@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { View, TextInput, ScrollView, Image, StyleSheet, TouchableOpacity, Text, Alert, GestureResponderEvent, Platform, BackHandler, ActivityIndicator, AppState, AppStateStatus } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { CONSTANTS, Payment } from '@/types/payment';
 import { StorageUtils } from '@/utils/storage';
 import Toast from 'react-native-toast-message';
@@ -35,6 +35,12 @@ const InputScreen: React.FC = () => {
   // Add a ref to store the timeout ID
   const retryTimeoutRef = useRef<NodeJS.Timeout>();
   const retryInProgressRef = useRef(false); // Add this to track retry state
+
+  useFocusEffect(
+    useCallback(() => {
+      setDate(new Date()); // Refresh the date state when page is focused
+    }, [])
+  );
 
   useEffect(() => {
     const handleAppStateChange = async (nextAppState: AppStateStatus) => {
@@ -360,6 +366,8 @@ const InputScreen: React.FC = () => {
           type: 'error',
           text1: 'Error',
           text2: 'Failed to load payment details',
+          position: 'bottom',
+
         });
       }
     }
@@ -611,7 +619,8 @@ const InputScreen: React.FC = () => {
                   {date.toLocaleTimeString([], {
                     hour: '2-digit',
                     minute: '2-digit',
-                    second: '2-digit'
+                    second: '2-digit',
+                    hour12: false,
                   })}
                 </Text>
                 <Ionicons name="time" size={24} color={PRIMARY_COLOR} />
@@ -628,11 +637,11 @@ const InputScreen: React.FC = () => {
                 }}
               />
             )}
-
             {showTimePicker && (
               <DateTimePicker
                 value={date}
                 mode="time"
+                is24Hour={true}
                 onChange={(event, selectedDate) => {
                   setShowTimePicker(false);
                   if (selectedDate) setDate(selectedDate);
