@@ -8,6 +8,7 @@ const STORAGE_KEYS = {
   PENDING_UPLOADS: 'pending_uploads',
 };
 const RETRY_STATUS_KEY = '@retry_status';
+const UPLOAD_QUEUE_KEY = 'upload_queue';
 
 export class StorageUtils {
 
@@ -51,11 +52,39 @@ export class StorageUtils {
     try {
       await Promise.all([
         AsyncStorage.removeItem(CONSTANTS.STORAGE_KEYS.PAYMENTS),
-        AsyncStorage.removeItem(CONSTANTS.STORAGE_KEYS.PENDING_UPLOADS)
+        AsyncStorage.removeItem(CONSTANTS.STORAGE_KEYS.PENDING_UPLOADS),
+        AsyncStorage.removeItem(RETRY_STATUS_KEY),  // Add this line
+        AsyncStorage.removeItem(UPLOAD_QUEUE_KEY)   // Add this line if you have a queue
       ]);
     } catch (error) {
       console.error('Error clearing all payments:', error);
       throw error;
+    }
+  }
+
+  static async debugPrintAllStorage(): Promise<void> {
+    try {
+      const allKeys = await AsyncStorage.getAllKeys();
+      console.log('==== Debug All Storage Keys ====');
+      console.log('All keys in AsyncStorage:', allKeys);
+
+      for (const key of allKeys) {
+        const value = await AsyncStorage.getItem(key);
+        console.log(`\nKey: ${key}`);
+        console.log('Value:', value);
+      }
+      console.log('============================');
+    } catch (error) {
+      console.error('Error printing storage:', error);
+    }
+  }
+
+  static async forceResetRetryStatus(): Promise<void> {
+    try {
+      await AsyncStorage.removeItem(RETRY_STATUS_KEY);
+      console.log('Retry status forcefully reset');
+    } catch (error) {
+      console.error('Error resetting retry status:', error);
     }
   }
 
@@ -164,7 +193,43 @@ export class StorageUtils {
     }
   }
 
-  
+  static async addToUploadQueue(paymentId: string): Promise<void> {
+    try {
+      const queue = await this.getUploadQueue();
+      if (!queue.includes(paymentId)) {
+        queue.push(paymentId);
+        await AsyncStorage.setItem(UPLOAD_QUEUE_KEY, JSON.stringify(queue));
+      }
+    } catch (error) {
+      console.error('Error adding to upload queue:', error);
+    }
+  }
+
+  static async removeFromUploadQueue(paymentId: string): Promise<void> {
+    try {
+      const queue = await this.getUploadQueue();
+      const updatedQueue = queue.filter(id => id !== paymentId);
+      await AsyncStorage.setItem(UPLOAD_QUEUE_KEY, JSON.stringify(updatedQueue));
+    } catch (error) {
+      console.error('Error removing from upload queue:', error);
+    }
+  }
+
+  static async getUploadQueue(): Promise<string[]> {
+    try {
+      const queue = await AsyncStorage.getItem(UPLOAD_QUEUE_KEY);
+      return queue ? JSON.parse(queue) : [];
+    } catch (error) {
+      console.error('Error getting upload queue:', error);
+      return [];
+    }
+  }
+
+  static async isInUploadQueue(paymentId: string): Promise<boolean> {
+    const queue = await this.getUploadQueue();
+    return queue.includes(paymentId);
+  }
+
 }
 
 function generateUniqueId(): string {

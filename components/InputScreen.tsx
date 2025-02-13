@@ -344,91 +344,84 @@ const InputScreen: React.FC = () => {
         paymentDatetime: date.getTime(),
       };
 
-      let uploadSuccess = false;
-      let retryInProgress = false;
-
-      // First attempt for upload
       try {
+        // First attempt to upload directly
         await APIService.savePayment(paymentData, 10);
-        uploadSuccess = true;
 
-        // In case a copy of this payment exists locally, remove it
-        const localPayments = await StorageUtils.getStoredPayments();
-        const localPayment = localPayments.find(p =>
+        const formattedTime = new Date(date.getTime()).toLocaleString('en-GB', {
+          day: '2-digit',
+          month: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false
+        });
+
+        Toast.show({
+          type: 'success',
+          text1: 'Success',
+          text2: `Payment ${title || 'Untitled'} (${formattedTime}) uploaded successfully`,
+          position: 'bottom',
+        });
+
+        resetForm();
+        router.push("/(tabs)/overall-payment");
+        return;
+
+      } catch (error) {
+        console.log('Initial upload failed, saving locally:', error);
+
+        // Save locally since direct upload failed
+        await StorageUtils.savePayment(paymentData);
+
+        // Get the payment ID from local storage
+        const payments = await StorageUtils.getStoredPayments();
+        const localPayment = payments.find(p =>
           p.title === paymentData.title &&
           p.paymentDatetime === paymentData.paymentDatetime
         );
-        if (localPayment?.id) {
-          await StorageUtils.deletePayment(localPayment.id);
+
+        if (!localPayment?.id) {
+          throw new Error('Failed to save payment locally');
         }
 
-      } catch (error) {
-        console.error('First upload attempt failed:', error);
+        // Check if there's actually any ongoing retry upload
+        const retryStatus = await StorageUtils.getRetryStatus();
+        console.log('==== Debug Retry Status ==== 2 ');
+        console.log('Full retry status object:', JSON.stringify(retryStatus, null, 2));
+        console.log('Status values:', Object.values(retryStatus));
+        console.log('Any retrying:', Object.values(retryStatus).some(status => status === true));
+        console.log('Number of retrying items:', Object.values(retryStatus).filter(status => status === true).length);
+        console.log('==========================');
 
-        if (!retryInProgressRef.current) {
-          retryInProgressRef.current = true;
-          // Save locally if first attempt fails
-          await StorageUtils.savePayment(paymentData);
+        const isAnyRetrying = Object.values(retryStatus).some(status => status === true);
 
-          // Get the payment ID from local storage
-          const payments = await StorageUtils.getStoredPayments();
-          const localPayment = payments.find(p =>
-            p.title === paymentData.title &&
-            p.paymentDatetime === paymentData.paymentDatetime
-          );
+        if (isAnyRetrying) {
+          // Only queue if there's actually an ongoing retry
+          await StorageUtils.addToUploadQueue(localPayment.id);
 
-          if (localPayment?.id) {
-            await StorageUtils.setRetryStatus(localPayment.id, true);
+          Toast.show({
+            type: 'info',
+            text1: 'Payment Queued',
+            text2: 'Your payment will be uploaded once current upload completes',
+            position: 'bottom',
+          });
+        } else {
+          // Start immediate retry if no other retries are in progress
+          await StorageUtils.setRetryStatus(localPayment.id, true);
+          handlePaymentUpload(localPayment.id);
 
-            retryTimeoutRef.current = setTimeout(async () => {
-              try {
-                await new Promise(resolve => setTimeout(resolve, 12000));
-                const retryResponse = await APIService.savePayment(paymentData, 30000);
-                const currentLocalPayments = await StorageUtils.getStoredPayments();
-                const paymentStillExists = currentLocalPayments.some(p => p.id === localPayment.id);
-
-                if (paymentStillExists) {
-                  await StorageUtils.deletePayment(localPayment.id);
-                  await StorageUtils.setRetryStatus(localPayment.id, false);
-                  Toast.show({
-                    type: 'success',
-                    text1: 'Retry Upload Success',
-                    text2: 'Payment uploaded successfully via retry.',
-                    position: 'bottom',
-                  });
-                  emitter.emit('paymentsUpdated');
-                }
-                router.push("/(tabs)/overall-payment");
-              } catch (retryError) {
-                console.error('Retry upload failed:', retryError);
-                Toast.show({
-                  type: 'error',
-                  text1: 'Retry Upload Failed',
-                  text2: 'Failed to upload payment on retry. Please try again later.',
-                  position: 'bottom',
-                });
-                await StorageUtils.setRetryStatus(localPayment.id, false);
-              } finally {
-                retryInProgressRef.current = false;
-                retryTimeoutRef.current = undefined;
-              }
-            }, 500);
-          }
+          Toast.show({
+            type: 'info',
+            text1: 'Saved Locally',
+            text2: 'Attempting to upload...',
+            position: 'bottom',
+          });
         }
+
+        resetForm();
+        router.push("/(tabs)/overall-payment");
       }
 
-      // Show appropriate toast message
-      Toast.show({
-        type: uploadSuccess ? 'success' : 'info',
-        text1: uploadSuccess ? 'Success' : 'Cannot Connect To Server',
-        text2: uploadSuccess
-          ? 'Payment uploaded successfully'
-          : 'Payment saved locally. Attempt re-uploading...',
-        position: 'bottom',
-      });
-
-      resetForm();
-      router.push("/(tabs)/overall-payment");
     } catch (error) {
       console.error('Submit Error:', error);
       Toast.show({
@@ -439,6 +432,74 @@ const InputScreen: React.FC = () => {
       });
     } finally {
       setIsSubmitting(false);
+    }
+  }
+
+
+  async function handlePaymentUpload(paymentId: string): Promise<void> {
+    try {
+      const payments = await StorageUtils.getStoredPayments();
+      const payment = payments.find(p => p.id === paymentId);
+
+      if (!payment) {
+        console.log('Payment not found for upload');
+        return;
+      }
+
+      const paymentData = {
+        title: payment.title,
+        whoPaid: payment.whoPaid,
+        amount: payment.amount,
+        amountType: payment.amountType,
+        paymentDatetime: payment.paymentDatetime,
+      };
+
+      await APIService.savePayment(paymentData, 30000);
+
+      // If successful, remove from local storage and retry status
+      await StorageUtils.deletePayment(paymentId);
+      await StorageUtils.setRetryStatus(paymentId, false);
+
+      const formattedTime = new Date(date.getTime()).toLocaleString([], {
+        year: 'numeric',
+        day: '2-digit',
+        month: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',      
+        hour12: false
+      });
+
+      Toast.show({
+        type: 'success',
+        text1: 'Success',
+        text2: `${title || 'Untitled'} (${formattedTime}) uploaded successfully`,
+        position: 'bottom',
+      });
+
+      // Process next queued item if any
+      const queue = await StorageUtils.getUploadQueue();
+      if (queue.length > 0) {
+        const nextPaymentId = queue[0];
+        await StorageUtils.removeFromUploadQueue(nextPaymentId);
+        await StorageUtils.setRetryStatus(nextPaymentId, true);
+        handlePaymentUpload(nextPaymentId);
+      }
+
+      emitter.emit('paymentsUpdated');
+
+    } catch (error) {
+      console.error('Upload retry failed:', error);
+
+      // Schedule another retry
+      await StorageUtils.setRetryStatus(paymentId, false);
+      setTimeout(async () => {
+        const isStillLocal = (await StorageUtils.getStoredPayments()).some(p => p.id === paymentId);
+        if (isStillLocal) {
+          await StorageUtils.setRetryStatus(paymentId, true);
+          handlePaymentUpload(paymentId);
+        }
+      }, 12000);
     }
   }
 

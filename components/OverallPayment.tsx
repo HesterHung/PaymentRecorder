@@ -36,9 +36,29 @@ const OverallPayment: React.FC = () => {
   const [isLocalLoading, setIsLocalLoading] = useState(false);
   const [retryingPayments, setRetryingPayments] = useState<{ [key: string]: boolean }>({});
   const [refreshing, setRefreshing] = useState(false); // RefreshControl state
+  const [queuedPayments, setQueuedPayments] = useState<Set<string>>(new Set());
 
   // Track app state changes
   const appState = useRef<AppStateStatus>(AppState.currentState);
+
+  useEffect(() => {
+    const checkQueueStatus = async () => {
+      try {
+        const queue = await StorageUtils.getUploadQueue();
+        setQueuedPayments(new Set(queue));
+      } catch (error) {
+        console.error('Error checking queue status:', error);
+      }
+    };
+
+    // Check initially
+    checkQueueStatus();
+
+    // Check periodically
+    const intervalId = setInterval(checkQueueStatus, 2000);
+
+    return () => clearInterval(intervalId);
+  }, []);
 
   // Use AppState to refresh data when the app becomes active from background.
   useEffect(() => {
@@ -358,9 +378,7 @@ const OverallPayment: React.FC = () => {
   };
 
   const handleLongPress = async (payment: Payment) => {
-    console.log('Long press detected for payment:', payment.id);
-
-    const isLocal = localPayments.has(payment.id); // Changed from checking stored payments to using localPayments state
+    const isLocal = localPayments.has(payment.id);
 
     Alert.alert(
       "Delete Payment",
@@ -379,16 +397,17 @@ const OverallPayment: React.FC = () => {
             try {
               if (isLocal) {
                 await StorageUtils.deletePayment(payment.id);
+                await StorageUtils.setRetryStatus(payment.id, false);  // Add this line
                 setLocalPayments(prev => {
                   const next = new Set(prev);
                   next.delete(payment.id);
                   return next;
                 });
                 await loadLocalReceipts();
-                await loadApiReceipts();  // Don't retry when deleting
+                await loadApiReceipts();
               } else {
                 await APIService.deletePayment(payment.id);
-                await loadApiReceipts();  // Don't retry when deleting
+                await loadApiReceipts();
               }
 
               Toast.show({
@@ -431,6 +450,9 @@ const OverallPayment: React.FC = () => {
                 text2: 'Please wait'
               });
 
+              // Debug print before clearing
+              await StorageUtils.debugPrintAllStorage();
+
               // Get all payments
               const [onlineReceipts, localReceipts] = await Promise.all([
                 APIService.getPayments(),
@@ -445,14 +467,19 @@ const OverallPayment: React.FC = () => {
               // Delete all local payments and storage
               await Promise.all([
                 ...onlineDeletePromises,
-                AsyncStorage.removeItem(CONSTANTS.STORAGE_KEYS.PAYMENTS),
-                StorageUtils.clearAllPayments() // Add this method to StorageUtils
+                StorageUtils.clearAllPayments(),
+                StorageUtils.forceResetRetryStatus()  // Add this line
               ]);
 
               // Reset states
               setLocalPayments(new Set());
               setGroupedPayments([]);
               setTotalBalance(0);
+              setRetryingPayments({});  // Add this line
+              setQueuedPayments(new Set());  // Add this line if you have queued payments state
+
+              // Debug print after clearing
+              await StorageUtils.debugPrintAllStorage();
 
               Toast.show({
                 type: 'success',
@@ -532,13 +559,15 @@ const OverallPayment: React.FC = () => {
   const renderReceiptItem = useCallback(({ item }: { item: Payment }) => {
     const isLocal = localPayments.has(item.id);
     const isRetrying = retryingPayments[item.id];
+    const isQueued = queuedPayments.has(item.id);
 
     const date = new Date(item.paymentDatetime);
     const formattedDate = date.toLocaleDateString();
     const formattedTime = date.toLocaleTimeString([], {
       hour: '2-digit',
       minute: '2-digit',
-      second: '2-digit'
+      second: '2-digit',
+      hour12: false
     });
 
     const displayAmount = item.amountType === 'total'
@@ -601,15 +630,21 @@ const OverallPayment: React.FC = () => {
             <TouchableOpacity
               style={[
                 styles.uploadButton,
-                isRetrying && styles.uploadButtonRetrying
+                isRetrying && styles.uploadButtonRetrying,
+                isQueued && styles.uploadButtonQueued
               ]}
               onPress={() => handlePaymentUpload(item)}
-              disabled={isRetrying}
+              disabled={isRetrying || isQueued}
             >
               {isRetrying ? (
                 <>
                   <ActivityIndicator size="small" color="#666" />
                   <Text style={styles.uploadButtonText}>Uploading...</Text>
+                </>
+              ) : isQueued ? (
+                <>
+                  <Ionicons name="time-outline" size={20} color="#666" />
+                  <Text style={styles.uploadButtonText}>Queued</Text>
                 </>
               ) : (
                 <>
@@ -622,7 +657,7 @@ const OverallPayment: React.FC = () => {
         </View>
       </TouchableOpacity>
     );
-  }, [localPayments, retryingPayments, users, handleLongPress, handlePaymentUpload]);
+  }, [localPayments, retryingPayments, queuedPayments, handlePaymentUpload, handlePaymentPress, handleLongPress]);
 
   const renderMonthSection = ({ item }: { item: GroupedPayments }) => {
     const isExpanded = expandedMonths[item.title] ?? true;
@@ -1033,6 +1068,10 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 14,
     fontWeight: '600',
+  },
+  uploadButtonQueued: {
+    backgroundColor: '#f0f0f0',
+    opacity: 0.8,
   },
 });
 
