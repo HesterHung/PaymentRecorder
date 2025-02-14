@@ -216,6 +216,7 @@ const OverallPayment: React.FC = () => {
           await loadLocalReceipts();
           // Then load API data
           await loadApiReceipts();
+          renderLocalPayments();
         } catch (error) {
           console.error('Error in loadData:', error);
         }
@@ -1212,7 +1213,9 @@ const OverallPayment: React.FC = () => {
             </Text>
           </View>
           <HistoryModal />
-          <TouchableOpacity onPress={handleResetAll} style={styles.debugResetButton}></TouchableOpacity>
+          {/*
+            <TouchableOpacity onPress={handleResetAll} style={styles.debugResetButton}></TouchableOpacity>
+          */}
           {renderLocalPayments()}
         </View>
       }

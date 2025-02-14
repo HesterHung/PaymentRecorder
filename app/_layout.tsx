@@ -57,25 +57,6 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
-    const subscription = AppState.addEventListener('change', async (nextAppState) => {
-      // Check if app is moving to background or inactive state
-      if (nextAppState === 'inactive' || nextAppState === 'background') {
-        console.log('App moving to background/inactive state');
-        try {
-          await StorageUtils.cleanupOnTerminate();
-        } catch (error) {
-          console.error('Error during app state cleanup:', error);
-        }
-      }
-    });
-
-    // Cleanup subscription on unmount
-    return () => {
-      subscription.remove();
-    };
-  }, []);
-
-  useEffect(() => {
     const handleAppStateChange = async (nextAppState: AppStateStatus) => {
       if (nextAppState === 'inactive' || nextAppState === 'background') {
         console.log('App moving to background/inactive state');
@@ -98,7 +79,7 @@ export default function RootLayout() {
       });
     };
   }, []);
-  
+
   // Now conditionally render the UI. All hooks are always called.
   if (!loaded) {
     return null;

@@ -35,7 +35,8 @@ TaskManager.defineTask(
             timestamp: Date.now(),
             status: 'success',
             paymentTitle: payment.title,
-            amount: payment.amount
+            amount: payment.amount,
+            paymentDatetime: payment.paymentDatetime,
           });
 
           await StorageUtils.deletePayment(payment.id);
@@ -50,7 +51,8 @@ TaskManager.defineTask(
             status: 'failed',
             paymentTitle: payment.title,
             amount: payment.amount,
-            error: uploadError instanceof Error ? uploadError.message : 'Unknown error'
+            error: uploadError instanceof Error ? uploadError.message : 'Unknown error',
+            paymentDatetime: payment.paymentDatetime,
           });
         }
       }
@@ -83,9 +85,6 @@ export const unregisterBackgroundRetryTask = async (): Promise<void> => {
   try {
     // Unregister the background task
     await BackgroundFetch.unregisterTaskAsync(TASK_NAME);
-
-    // Perform cleanup
-    await StorageUtils.cleanupOnTerminate();
 
     console.log('Background retry upload task unregistered and cleaned up.');
   } catch (error) {
