@@ -36,11 +36,6 @@ const InputScreen: React.FC = () => {
   const retryTimeoutRef = useRef<NodeJS.Timeout>();
   const retryInProgressRef = useRef(false); // Add this to track retry state
 
-  useFocusEffect(
-    useCallback(() => {
-      setDate(new Date()); // Refresh the date state when page is focused
-    }, [])
-  );
 
   useEffect(() => {
     const handleAppStateChange = async (nextAppState: AppStateStatus) => {
@@ -581,6 +576,13 @@ const InputScreen: React.FC = () => {
       }, 12000);
     }
   }
+
+  useFocusEffect(
+    useCallback(() => {
+      existingPayment ? '' : setDate(new Date()); // Refresh the date state when page is focused
+    }, [])
+  );
+
 
   return (
     <View style={styles.pageContainer}>
