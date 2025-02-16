@@ -5,7 +5,9 @@ import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
+import { AppState, AppStateStatus } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/useColorScheme';
@@ -16,17 +18,17 @@ import { registerBackgroundRetryTask } from './hooks/backgroundRetryUpload';
 import APIService from '@/services/api';
 import { emitter } from '@/hooks/eventEmitter';
 import { StorageUtils } from '@/utils/storage';
-import { AppState, AppStateStatus } from 'react-native';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
-  // Always call hooks in the same order:
   const colorScheme = useColorScheme();
   const [loaded] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
   });
+  const appState = useRef(AppState.currentState);
+  let cleanup = false;
 
   // Register splash hide when fonts are ready
   useEffect(() => {
@@ -56,27 +58,64 @@ export default function RootLayout() {
     registerBackgroundRetryTask();
   }, []);
 
+  // Handle app state changes including termination
   useEffect(() => {
     const handleAppStateChange = async (nextAppState: AppStateStatus) => {
-      if (nextAppState === 'inactive' || nextAppState === 'background') {
-        console.log('App moving to background/inactive state');
+      if (cleanup) return;
+
+      if (
+        nextAppState === 'inactive' ||
+        nextAppState === 'background' ||
+        (appState.current === 'active' && nextAppState !== 'active')
+      ) {
+        console.log('App moving to background/inactive/terminating state');
         try {
+          await AsyncStorage.setItem('APP_STATE', 'SHUTTING_DOWN');
           await StorageUtils.handleAppBackground();
-          console.log('Background handling completed');
+          await AsyncStorage.setItem('APP_STATE', 'CLEAN_SHUTDOWN');
+          console.log('Background/termination handling completed');
         } catch (error) {
-          console.error('Error during background handling:', error);
+          console.error('Error during background/termination handling:', error);
+          await AsyncStorage.setItem('APP_STATE', 'ERROR_SHUTDOWN');
         }
       }
+
+      appState.current = nextAppState;
     };
 
     const subscription = AppState.addEventListener('change', handleAppStateChange);
 
+    // Initialize state check
+    const checkPreviousState = async () => {
+      try {
+        const previousState = await AsyncStorage.getItem('APP_STATE');
+        if (previousState === 'SHUTTING_DOWN') {
+          console.log('App was terminated unexpectedly, performing recovery...');
+          await StorageUtils.handleAppBackground();
+        }
+        await AsyncStorage.setItem('APP_STATE', 'ACTIVE');
+      } catch (error) {
+        console.error('Error checking previous state:', error);
+      }
+    };
+
+    checkPreviousState();
+
     return () => {
+      cleanup = true;
       subscription.remove();
-      // Perform final cleanup
-      StorageUtils.handleAppBackground().catch(error => {
-        console.error('Error during final cleanup:', error);
-      });
+
+      const performCleanup = async () => {
+        try {
+          await StorageUtils.handleAppBackground();
+          await AsyncStorage.setItem('APP_STATE', 'CLEAN_SHUTDOWN');
+        } catch (error) {
+          console.error('Error during final cleanup:', error);
+          await AsyncStorage.setItem('APP_STATE', 'ERROR_SHUTDOWN');
+        }
+      };
+
+      performCleanup();
     };
   }, []);
 

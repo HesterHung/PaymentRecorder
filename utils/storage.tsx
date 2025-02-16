@@ -30,10 +30,13 @@ export class StorageUtils {
 
   static async handleAppBackground(): Promise<void> {
     try {
+      // Get current state
       const retryStatus = await this.getRetryStatus();
       const retryingPaymentIds = Object.keys(retryStatus).filter(id => retryStatus[id]);
 
       const payments = await this.getStoredPayments();
+
+      // Handle each payment in retry state
       for (const paymentId of retryingPaymentIds) {
         await this.setRetryStatus(paymentId, false);
         await this.addToUploadQueue(paymentId);
@@ -43,18 +46,25 @@ export class StorageUtils {
           await this.addUploadHistory({
             paymentId: payment.id,
             timestamp: Date.now(),
-            paymentDatetime: payment.paymentDatetime, // Make sure this is included
+            paymentDatetime: payment.paymentDatetime,
             status: 'failed',
             paymentTitle: payment.title || 'Untitled',
             amount: payment.amount,
-            error: 'Upload paused - App went to background'
+            error: 'Upload interrupted - App terminated/backgrounded'
           });
         }
       }
 
-      console.log('Background handling completed');
+      // Store current state for recovery
+      await AsyncStorage.setItem('LAST_KNOWN_STATE', JSON.stringify({
+        timestamp: Date.now(),
+        retryingPayments: retryingPaymentIds,
+        queuedPayments: await this.getUploadQueue()
+      }));
+
+      console.log('Background/termination handling completed');
     } catch (error) {
-      console.error('Error handling background state:', error);
+      console.error('Error handling background/termination state:', error);
       throw error;
     }
   }

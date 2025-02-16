@@ -143,6 +143,69 @@ const OverallPayment: React.FC = () => {
   useEffect(() => {
     let isMounted = true;
 
+    const checkRetryAndQueue = async () => {
+      if (!isMounted) return;
+
+      try {
+        const retryStatus = await StorageUtils.getRetryStatus();
+        const isAnyRetrying = Object.values(retryStatus).some(status => status === true);
+
+        if (!isAnyRetrying) {
+          // Get the upload queue
+          const queue = await StorageUtils.getUploadQueue();
+
+          if (queue.length > 0) {
+            // Get the first payment in queue
+            const nextPaymentId = queue[0];
+
+            // Remove from queue
+            await StorageUtils.removeFromUploadQueue(nextPaymentId);
+            setQueuedPayments(prev => {
+              const next = new Set(prev);
+              next.delete(nextPaymentId);
+              return next;
+            });
+
+            // Set retry status for this payment
+            await StorageUtils.setRetryStatus(nextPaymentId, true);
+
+            // Get the payment details
+            const payments = await StorageUtils.getStoredPayments();
+            const nextPayment = payments.find(p => p.id === nextPaymentId);
+
+            if (nextPayment) {
+              // Trigger upload for this payment
+              handlePaymentUpload(nextPayment);
+
+              // Update UI states
+              setRetryingPayments(prev => ({
+                ...prev,
+                [nextPaymentId]: true
+              }));
+            }
+          }
+          renderLocalPayments();
+        }
+      } catch (error) {
+        console.error('Error checking retry status and queue:', error);
+      }
+    };
+
+    // Check initially
+    checkRetryAndQueue();
+
+    // Set up interval
+    const intervalId = setInterval(checkRetryAndQueue, 3000); // Check every 5 seconds
+
+    return () => {
+      isMounted = false;
+      clearInterval(intervalId);
+    };
+  }, []); // Empty dependency array means this runs once on mount
+
+  useEffect(() => {
+    let isMounted = true;
+
     const checkStatuses = async () => {
       if (!isMounted) return;
 
@@ -698,36 +761,12 @@ const OverallPayment: React.FC = () => {
   const handlePaymentUpload = async (payment: Payment) => {
     try {
       // First check if this specific payment is already being processed
-      if (retryingPayments[payment.id] || queuedPayments.has(payment.id)) {
-        console.log('Payment is already being processed or queued');
+      if (retryingPayments[payment.id]) {
+        console.log('Payment is already being processed');
         return;
       }
 
-      // Check if ANY payment is currently being processed
-      const isAnyProcessing = Object.values(retryingPayments).some(status => status === true);
-
-      // If any payment is processing or there are queued payments, add to queue
-      if (isAnyProcessing || queuedPayments.size > 0) {
-        await StorageUtils.addToUploadQueue(payment.id);
-
-        // Update UI state for queued payments
-        setQueuedPayments(prev => {
-          const next = new Set(prev);
-          next.add(payment.id);
-          return next;
-        });
-
-        Toast.show({
-          type: 'info',
-          text1: 'Payment Queued',
-          text2: 'Your payment will be uploaded when current uploads complete',
-          position: 'bottom',
-        });
-
-        return;
-      }
-
-      // If no payments are processing, proceed with upload
+      // Update retry status
       setRetryingPayments(prev => ({
         ...prev,
         [payment.id]: true
@@ -740,10 +779,11 @@ const OverallPayment: React.FC = () => {
         amountType: payment.amountType,
         paymentDatetime: payment.paymentDatetime
       };
-      if (!isApiLoading) {
-        await APIService.savePayment(paymentData, 30000);
-        // If successful, remove from local storage and retry status
 
+      if (!isApiLoading) {
+        await APIService.savePayment(paymentData, 10000);
+
+        // If successful, remove from local storage and retry status
         await StorageUtils.deletePayment(payment.id);
         await StorageUtils.setRetryStatus(payment.id, false);
 
@@ -767,34 +807,12 @@ const OverallPayment: React.FC = () => {
       } else {
         Toast.show({
           type: 'error',
-          text1: 'Error',
-          text2: `API is not avalible yet. Please try again later`,
+          text1: 'Uplaod Fail',
+          text2: `API is not ready yet. Try again later.`,
           position: 'bottom',
         });
       }
 
-      // After successful upload, process next queued item if any
-      const queue = await StorageUtils.getUploadQueue();
-      if (queue.length > 0) {
-        const nextPaymentId = queue[0];
-        // Remove from queue before processing
-        await StorageUtils.removeFromUploadQueue(nextPaymentId);
-        setQueuedPayments(prev => {
-          const next = new Set(prev);
-          next.delete(nextPaymentId);
-          return next;
-        });
-
-        const nextPayment = (await StorageUtils.getStoredPayments())
-          .find(p => p.id === nextPaymentId);
-
-        if (nextPayment) {
-          // Process next payment in queue
-          handlePaymentUpload(nextPayment);
-        }
-      }
-
-      emitter.emit('paymentsUpdated');
 
     } catch (error) {
       console.error('Upload retry failed:', error);
@@ -808,24 +826,24 @@ const OverallPayment: React.FC = () => {
 
       await StorageUtils.setRetryStatus(payment.id, false);
 
+      // Add to history
       await StorageUtils.addUploadHistory({
         paymentId: payment.id,
         timestamp: Date.now(),
-        paymentDatetime: payment.paymentDatetime, // Make sure this is included
+        paymentDatetime: payment.paymentDatetime,
         paymentTitle: payment.title,
         amount: payment.amount,
         status: 'failed',
         error: error instanceof Error ? error.message : 'Upload Failed'
       });
 
-      // Schedule another retry
-      setTimeout(async () => {
-        const isStillLocal = (await StorageUtils.getStoredPayments())
-          .some(p => p.id === payment.id);
-        if (isStillLocal) {
-          handlePaymentUpload(payment);
-        }
-      }, 12000);
+      // Add back to queue for retry
+      await StorageUtils.addToUploadQueue(payment.id);
+      setQueuedPayments(prev => {
+        const next = new Set(prev);
+        next.add(payment.id);
+        return next;
+      });
     }
   };
 
