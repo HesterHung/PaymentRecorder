@@ -740,35 +740,38 @@ const OverallPayment: React.FC = () => {
         amountType: payment.amountType,
         paymentDatetime: payment.paymentDatetime
       };
-      await APIService.savePayment(paymentData, 30000);
+      if (!isApiLoading) {
+        await APIService.savePayment(paymentData, 30000);
+        // If successful, remove from local storage and retry status
 
-      // If successful, remove from local storage and retry status
-      await StorageUtils.deletePayment(payment.id);
-      await StorageUtils.setRetryStatus(payment.id, false);
+        await StorageUtils.deletePayment(payment.id);
+        await StorageUtils.setRetryStatus(payment.id, false);
 
-      // Clear this payment's retry status
-      setRetryingPayments(prev => {
-        const next = { ...prev };
-        delete next[payment.id];
-        return next;
-      });
+        // Clear this payment's retry status
+        setRetryingPayments(prev => {
+          const next = { ...prev };
+          delete next[payment.id];
+          return next;
+        });
 
-      const formattedTime = new Date(payment.paymentDatetime).toLocaleString([], {
-        year: 'numeric',
-        day: '2-digit',
-        month: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: false
-      });
+        Toast.show({
+          type: 'success',
+          text1: 'Success',
+          text2: `${payment.title || 'Untitled'} uploaded successfully`,
+          position: 'bottom',
+        });
 
-      Toast.show({
-        type: 'success',
-        text1: 'Success',
-        text2: `${payment.title || 'Untitled'} (${formattedTime}) uploaded successfully`,
-        position: 'bottom',
-      });
+        // Refresh the local payments display
+        await loadLocalReceipts();
+        emitter.emit('paymentsUpdated');
+      } else {
+        Toast.show({
+          type: 'error',
+          text1: 'Error',
+          text2: `API is not avalible yet. Please try again later`,
+          position: 'bottom',
+        });
+      }
 
       // After successful upload, process next queued item if any
       const queue = await StorageUtils.getUploadQueue();

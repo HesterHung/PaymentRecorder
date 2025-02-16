@@ -91,6 +91,25 @@ export class APIService {
         }
     }
 
+    // In api.tsx, add this method:
+
+    static async checkApiAvailability(): Promise<boolean> {
+        try {
+            const response = await fetch(`${this.BASE_URL}/records`, {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json',
+                },
+                // Short timeout for availability check
+                signal: AbortSignal.timeout(5000)
+            });
+            return response.ok;
+        } catch (error) {
+            console.log('API not available:', error);
+            return false;
+        }
+    }
+
     static async getPayments(): Promise<Payment[]> {
         try {
             const response = await fetch(`${this.BASE_URL}/records`);

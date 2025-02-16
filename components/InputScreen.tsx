@@ -806,6 +806,7 @@ const InputScreen: React.FC = () => {
           <TouchableOpacity
             style={styles.cancelButton}
             onPress={handleCancel}
+            disabled={isSubmitting}
           >
             <Text style={styles.cancelButtonText}>Cancel</Text>
           </TouchableOpacity>
