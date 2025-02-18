@@ -17,6 +17,7 @@ const InputScreen: React.FC = () => {
   const params = useLocalSearchParams();
   const [existingPayment, setExistingPayment] = useState<Payment | null>(null);
   const isEditing = params.isEditing === 'true';
+  const isFromIndex = params.fromIndex === 'true';
 
   // Initialize state with existingPayment data
   const [title, setTitle] = useState('');
@@ -112,6 +113,40 @@ const InputScreen: React.FC = () => {
     };
   }, []);
 
+  // Update the useEffect that handles existing payment
+  useEffect(() => {
+    if (params.existingPayment && !isFromIndex) {
+      try {
+        const payment = JSON.parse(params.existingPayment as string) as Payment;
+        setExistingPayment(payment);
+        setTitle(payment.title || '');
+        setWhoPaid(payment.whoPaid);
+        setAmountType(payment.amountType as 'total' | 'specify');
+        // Create a new Date object from the payment's timestamp
+        setDate(new Date(payment.paymentDatetime));
+
+        if (payment.amountType === 'total') {
+          setTotalAmount(payment.amount.toString());
+        } else {
+          setSpecificAmount(payment.amount.toString());
+        }
+      } catch (error) {
+        console.error('Error parsing existing payment:', error);
+        Toast.show({
+          type: 'error',
+          text1: 'Error',
+          text2: 'Failed to load payment details',
+          position: 'bottom',
+        });
+      }
+    } else {
+      // Only set new date for new payments
+      setDate(new Date());
+      resetForm(); // Reset other fields
+    }
+  }, [params.existingPayment]);
+
+
   useEffect(() => {
     const loadUsers = async () => {
       try {
@@ -190,19 +225,30 @@ const InputScreen: React.FC = () => {
     return () => unsubscribe();
   }, [params.existingPayment]);
 
+  useFocusEffect(
+    useCallback(() => {
+      if (isFromIndex) {
+        setDate(new Date());
+      }
+    }, [isFromIndex])
+  );
+
   const resetForm = useCallback(() => {
-    setTitle('');
+    if (isFromIndex) {
+      setExistingPayment(null);
+      setTitle('');
+      setAmountType('total');
+      setTotalAmount('');
+      setSpecificAmount('');
+      setDate(new Date()); // Only reset date for new payments
+    }
     const currentUser = userStorage.getCurrentUser();
     setWhoPaid(currentUser || '');
-    setAmountType('total');
-    setTotalAmount('');
-    setSpecificAmount('');
-    setDate(new Date());
-    setReceipt(null);
     setShowDatePicker(false);
     setShowTimePicker(false);
-    setExistingPayment(null);
-  }, []);
+  }, [isFromIndex]); // Add existingPayment to dependencies
+
+
 
   const handleAmountTypeSelect = (type: 'total' | 'specify') => {
     setAmountType(type);
@@ -218,10 +264,11 @@ const InputScreen: React.FC = () => {
 
   // Reset form when entering the screen (except for edit mode)
   useEffect(() => {
-    if (!params.existingPayment) {
+    if (!params.existingPayment || isFromIndex) {
       resetForm();
     }
-  }, []);
+  }, [params.existingPayment, isFromIndex]); // Make sure to include dependencies for correct reactivity
+
 
   // Modified useEffect for back handler
   useEffect(() => {
@@ -240,7 +287,7 @@ const InputScreen: React.FC = () => {
               style: "destructive",
               onPress: () => {
                 resetForm();
-                router.back();
+                handleNavigateBack();
               }
             }
           ]
@@ -248,7 +295,6 @@ const InputScreen: React.FC = () => {
         return true;
       }
 
-      // Check for other unsaved changes
       if (hasUnsavedChanges) {
         Alert.alert(
           "Discard changes?",
@@ -263,7 +309,7 @@ const InputScreen: React.FC = () => {
               style: "destructive",
               onPress: () => {
                 resetForm();
-                router.back();
+                handleNavigateBack();
               }
             }
           ]
@@ -271,7 +317,7 @@ const InputScreen: React.FC = () => {
         return true;
       }
 
-      router.back();
+      handleNavigateBack();
       return true;
     };
 
@@ -281,7 +327,17 @@ const InputScreen: React.FC = () => {
     );
 
     return () => backHandler.remove();
-  }, [hasUserChanged, hasUnsavedChanges, whoPaid, resetForm]);
+  }, [hasUserChanged, hasUnsavedChanges, whoPaid, resetForm, isFromIndex, existingPayment]);
+
+  const handleNavigateBack = () => {
+    if (isFromIndex) {
+      router.back(); // or router.push("/") to go back to index
+    } else if (existingPayment) {
+      router.push("/(tabs)/overall-payment");
+    } else {
+      router.back();
+    }
+  };
 
   // Modified handleCancel function
   const handleCancel = () => {
@@ -299,11 +355,7 @@ const InputScreen: React.FC = () => {
             style: "destructive",
             onPress: () => {
               resetForm();
-              if (existingPayment) {
-                router.push("/(tabs)/overall-payment");
-              } else {
-                router.back();
-              }
+              handleNavigateBack();
             }
           }
         ]
@@ -322,52 +374,18 @@ const InputScreen: React.FC = () => {
             style: "destructive",
             onPress: () => {
               resetForm();
-              if (existingPayment) {
-                router.push("/(tabs)/overall-payment");
-              } else {
-                router.back();
-              }
+              handleNavigateBack();
             }
           }
         ]
       );
     } else {
-      if (existingPayment) {
-        router.push("/(tabs)/overall-payment");
-      } else {
-        router.back();
-      }
+      handleNavigateBack();
     }
   };
 
-  // Use useEffect to parse and set the existing payment data
-  useEffect(() => {
-    if (params.existingPayment) {
-      try {
-        const payment = JSON.parse(params.existingPayment as string) as Payment;
-        setExistingPayment(payment);
-        setTitle(payment.title || '');
-        setWhoPaid(payment.whoPaid);
-        setAmountType(payment.amountType as 'total' | 'specify');
-        setDate(new Date(payment.paymentDatetime)); // This preserves the full timestamp precision
 
-        if (payment.amountType === 'total') {
-          setTotalAmount(payment.amount.toString());
-        } else {
-          setSpecificAmount(payment.amount.toString());
-        }
-      } catch (error) {
-        console.error('Error parsing existing payment:', error);
-        Toast.show({
-          type: 'error',
-          text1: 'Error',
-          text2: 'Failed to load payment details',
-          position: 'bottom',
 
-        });
-      }
-    }
-  }, [params.existingPayment]);
 
   async function handleSubmit(event: GestureResponderEvent): Promise<void> {
     if (isSubmitting) return;
@@ -389,7 +407,8 @@ const InputScreen: React.FC = () => {
         whoPaid,
         amount: numericAmount,
         amountType: amountType,
-        paymentDatetime: date.getTime(),
+        // Use the existing payment's timestamp if editing, otherwise use current time
+        paymentDatetime: existingPayment ? existingPayment.paymentDatetime : date.getTime(),
       };
 
       if (existingPayment) {
@@ -576,13 +595,6 @@ const InputScreen: React.FC = () => {
       }, 12000);
     }
   }
-
-  useFocusEffect(
-    useCallback(() => {
-      existingPayment ? '' : setDate(new Date()); // Refresh the date state when page is focused
-    }, [])
-  );
-
 
   return (
     <View style={styles.pageContainer}>

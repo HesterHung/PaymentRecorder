@@ -67,7 +67,13 @@ export default function Page() {
                         shadowOpacity: 0.25,
                         shadowRadius: 3.84,
                     }}
-                    onPress={() => router.push('/standard-input')}
+                    onPress={() => router.push({
+                        pathname: "/(tabs)/standard-input",
+                        params: {
+                            fromIndex: 'true',  // Add this parameter
+                            existingPayment: null
+                        }
+                    })}
                 >
                     <Ionicons name="create-outline" size={48} color="white" />
                     <Text style={{

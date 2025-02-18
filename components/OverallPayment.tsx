@@ -556,7 +556,6 @@ const OverallPayment: React.FC = () => {
         params: {
           existingPayment: JSON.stringify({
             ...payment,
-            timestamp: Date.now() // Add timestamp to force param refresh
           })
         }
       });
