@@ -120,11 +120,11 @@ const InputScreen: React.FC = () => {
         const payment = JSON.parse(params.existingPayment as string) as Payment;
         setExistingPayment(payment);
         setTitle(payment.title || '');
-        setWhoPaid(payment.whoPaid);
+        // Set whoPaid directly from payment data
+        setWhoPaid(payment.whoPaid); 
         setAmountType(payment.amountType as 'total' | 'specify');
-        // Create a new Date object from the payment's timestamp
         setDate(new Date(payment.paymentDatetime));
-
+  
         if (payment.amountType === 'total') {
           setTotalAmount(payment.amount.toString());
         } else {
@@ -140,40 +140,10 @@ const InputScreen: React.FC = () => {
         });
       }
     } else {
-      // Only set new date for new payments
       setDate(new Date());
-      resetForm(); // Reset other fields
+      resetForm();
     }
   }, [params.existingPayment]);
-
-
-  useEffect(() => {
-    const loadUsers = async () => {
-      try {
-        const loadedUsers = await userStorage.getUsers();
-        setUsers(loadedUsers);
-
-        // Set the current user as the payer if not in edit mode
-        if (!existingPayment) {
-          const currentUser = userStorage.getCurrentUser();
-          if (currentUser) {
-            setWhoPaid(currentUser);
-          }
-        }
-      } catch (error) {
-        console.error('Error loading users:', error);
-      }
-    };
-
-    loadUsers();
-
-    // Subscribe to user changes
-    const unsubscribe = userStorage.subscribe(() => {
-      loadUsers();
-    });
-
-    return () => unsubscribe();
-  }, [existingPayment]);
 
   const hasUnsavedChanges = useMemo(() => {
     return !!(title || totalAmount || specificAmount || receipt);
@@ -185,35 +155,34 @@ const InputScreen: React.FC = () => {
   }, [whoPaid]);
 
   useEffect(() => {
-    const loadInitialData = async () => {
+    const initializeUser = async () => {
       try {
-        // Load users from AsyncStorage
-        const storedUsers = await AsyncStorage.getItem('users');
-        if (storedUsers) {
-          const parsedUsers = JSON.parse(storedUsers);
-          if (parsedUsers.length >= 2) {
-            setUsers([parsedUsers[0], parsedUsers[1]]);
+        // Load users from storage
+        const storedUsers = await userStorage.getUsers();
+        setUsers(storedUsers);
+
+        // If editing an existing payment, use its payer
+        if (existingPayment) {
+          setWhoPaid(existingPayment.whoPaid);
+        }
+        // Otherwise use current user as default
+        else {
+          const currentUser = userStorage.getCurrentUser();
+          if (currentUser) {
+            setWhoPaid(currentUser);
           }
         }
-
-        // Set the current user as the payer
-        const currentUser = userStorage.getCurrentUser();
-        if (currentUser) {
-          setWhoPaid(currentUser);
-        }
       } catch (error) {
-        console.error('Error loading initial data:', error);
+        console.error('Error initializing users:', error);
       }
     };
 
-    // Only load initial data if not in edit mode
-    if (!params.existingPayment) {
-      loadInitialData();
-    }
+    initializeUser();
 
-    // Subscribe to user changes
+    // Subscribe to user changes (but don't override editing state)
     const unsubscribe = userStorage.subscribe(() => {
-      if (!params.existingPayment) {
+      // Only update default user if not editing
+      if (!existingPayment) {
         const currentUser = userStorage.getCurrentUser();
         if (currentUser) {
           setWhoPaid(currentUser);
@@ -221,9 +190,8 @@ const InputScreen: React.FC = () => {
       }
     });
 
-    // Cleanup subscription
     return () => unsubscribe();
-  }, [params.existingPayment]);
+  }, [existingPayment]);
 
   useFocusEffect(
     useCallback(() => {
@@ -240,13 +208,16 @@ const InputScreen: React.FC = () => {
       setAmountType('total');
       setTotalAmount('');
       setSpecificAmount('');
-      setDate(new Date()); // Only reset date for new payments
+      setDate(new Date());
     }
-    const currentUser = userStorage.getCurrentUser();
-    setWhoPaid(currentUser || '');
+    // Only set whoPaid to currentUser if not editing
+    if (!existingPayment) {
+      const currentUser = userStorage.getCurrentUser();
+      setWhoPaid(currentUser || '');
+    }
     setShowDatePicker(false);
     setShowTimePicker(false);
-  }, [isFromIndex]); // Add existingPayment to dependencies
+  }, [isFromIndex, existingPayment]); // Add existingPayment to dependencies
 
 
 
