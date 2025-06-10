@@ -34,7 +34,7 @@ const InputScreen: React.FC = () => {
   const totalAmountRef = useRef<TextInput>(null);
   const specificAmountRef = useRef<TextInput>(null);
   // Add a ref to store the timeout ID
-  const retryTimeoutRef = useRef<NodeJS.Timeout>();
+  const retryTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
   const retryInProgressRef = useRef(false); // Add this to track retry state
 
 
@@ -121,10 +121,10 @@ const InputScreen: React.FC = () => {
         setExistingPayment(payment);
         setTitle(payment.title || '');
         // Set whoPaid directly from payment data
-        setWhoPaid(payment.whoPaid); 
+        setWhoPaid(payment.whoPaid);
         setAmountType(payment.amountType as 'total' | 'specify');
         setDate(new Date(payment.paymentDatetime));
-  
+
         if (payment.amountType === 'total') {
           setTotalAmount(payment.amount.toString());
         } else {
