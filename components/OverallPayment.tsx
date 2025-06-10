@@ -29,6 +29,8 @@ import Toast from 'react-native-toast-message';
 import APIService from '@/services/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { emitter } from '@/hooks/eventEmitter';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 
 const { width } = Dimensions.get('window');
 const peopleNumber = 2;
@@ -60,6 +62,8 @@ const OverallPayment: React.FC = () => {
   const [isHistoryModalVisible, setIsHistoryModalVisible] = useState(false);
   const [uploadHistory, setUploadHistory] = useState<UploadHistoryEntry[]>([]);
   const [isHistoryLoading, setIsHistoryLoading] = useState(false); // Add this
+  const [isDownloading, setIsDownloading] = useState(false);
+
   // Track app state changes
   const appState = useRef<AppStateStatus>(AppState.currentState);
 
@@ -1127,6 +1131,57 @@ const OverallPayment: React.FC = () => {
     </Modal>
   ));
 
+  const handleDownloadData = async () => {
+    if (isDownloading) return;
+
+    setIsDownloading(true);
+
+    try {
+      const lastApiPayments = await StorageUtils.getLastApiPayments();
+
+      if (!lastApiPayments || lastApiPayments.length === 0) {
+        Toast.show({
+          type: 'error',
+          text1: 'No Data to Download',
+          text2: 'There is no cached API data to save.',
+          position: 'bottom'
+        });
+        return;
+      }
+
+      const fileName = `payment_records_${new Date().toISOString()}.txt`;
+      // Use cacheDirectory for temporary files that can be cleared
+      const fileUri = FileSystem.cacheDirectory + fileName;
+      const content = JSON.stringify(lastApiPayments, null, 2); // Pretty print JSON
+
+      await FileSystem.writeAsStringAsync(fileUri, content, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+
+      const isSharingAvailable = await Sharing.isAvailableAsync();
+      if (!isSharingAvailable) {
+        throw new Error('File sharing is not available on this device.');
+      }
+
+      await Sharing.shareAsync(fileUri, {
+        mimeType: 'text/plain',
+        dialogTitle: 'Save Payment Data',
+      });
+
+    } catch (error) {
+      console.error('Error downloading data:', error);
+      Toast.show({
+        type: 'error',
+        text1: 'Download Failed',
+        text2: error instanceof Error ? error.message : 'An unknown error occurred.',
+        position: 'bottom',
+      });
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+
   useEffect(() => {
     const subscription = AppState.addEventListener('change', async (nextAppState) => {
       if (
@@ -1217,17 +1272,32 @@ const OverallPayment: React.FC = () => {
           </TouchableOpacity>
           {/* Updated lastUpdatedContainer - history button is now on the left, text on the right */}
           <View style={styles.lastUpdatedContainer}>
-            <TouchableOpacity
-              onPress={handleHistoryButtonPress}
-              style={styles.historyButton}
-              disabled={isHistoryLoading}
-            >
-              {isHistoryLoading ? (
-                <ActivityIndicator size="small" color="#666" />
-              ) : (
-                <MaterialIcons name="manage-history" size={24} color="#666" />
-              )}
-            </TouchableOpacity>
+            <View style={styles.leftActionButtons}>
+              <TouchableOpacity
+                onPress={handleDownloadData}
+                style={styles.actionButton}
+                disabled={isDownloading}
+              >
+                {isDownloading ? (
+                  <ActivityIndicator size="small" color="#666" />
+                ) : (
+                  <Ionicons name="cloud-download-outline" size={24} color="#666" />
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={handleHistoryButtonPress}
+                style={styles.historyButton}
+                disabled={isHistoryLoading}
+              >
+                {isHistoryLoading ? (
+                  <ActivityIndicator size="small" color="#666" />
+                ) : (
+                  <MaterialIcons name="manage-history" size={24} color="#666" />
+                )}
+              </TouchableOpacity>
+            </View>
+
             <Text style={styles.lastUpdatedText}>
               {isOffline ? 'Offline -' : isApiLoading ? 'Updating... Last updated:' : 'Last updated:'} {formatLastUpdated(lastUpdated)}
             </Text>
@@ -1696,6 +1766,14 @@ const styles = StyleSheet.create({
   },
   historyTimeContainer: {
     marginTop: 4,
+  },
+  leftActionButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  actionButton: { // Renamed from historyButton
+    padding: 8,
   },
 });
 
