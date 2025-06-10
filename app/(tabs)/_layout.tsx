@@ -42,14 +42,19 @@ export default function TabsLayout() {
 
   return (
     <SafeAreaView style={{ flex: 1 }}>
-      <Tabs 
+      <Tabs
         screenOptions={{
           headerShown: false,
-          tabBarActiveTintColor: PRIMARY_COLOR, 
+          tabBarActiveTintColor: PRIMARY_COLOR,
           tabBarInactiveTintColor: '#8E8E93',
           tabBarStyle: {
             display: hideTabBar ? 'none' : 'flex',
-            backgroundColor: '#ffffff', 
+            backgroundColor: '#ffffff',
+            paddingTop: 5,
+            paddingBottom: 0, // Reset any extra bottom padding
+            height: 60, // Set a fixed height to control tab bar size
+            elevation: 0,
+            justifyContent: 'center'
           }
         }}
       >
