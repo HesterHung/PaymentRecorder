@@ -850,7 +850,7 @@ const OverallPayment: React.FC = () => {
     }
   };
 
-  const renderReceiptItem = useCallback(({ item }: { item: Payment }) => {
+  const renderReceiptItem = useCallback(({ item }: { item: Payment }, isRenderingCached?: boolean) => {
     const isLocal = localPayments.has(item.id);
     const isRetrying = retryingPayments[item.id];
     const isQueued = queuedPayments.has(item.id);
@@ -878,6 +878,7 @@ const OverallPayment: React.FC = () => {
         onLongPress={() => handleLongPress(item)}
         delayLongPress={500}
         activeOpacity={0.7}
+        disabled={isRenderingCached}
       >
         <View style={styles.paymentHeader}>
           <View style={styles.dateTimeContainer}>
@@ -928,7 +929,7 @@ const OverallPayment: React.FC = () => {
                 isQueued && styles.uploadButtonQueued
               ]}
               onPress={() => handlePaymentUpload(item)}
-              disabled={isRetrying || isQueued} // Disable button if retrying or queued
+              disabled={isRetrying || isQueued}
             >
               {isRetrying ? (
                 <>
@@ -948,48 +949,20 @@ const OverallPayment: React.FC = () => {
               )}
             </TouchableOpacity>
           )}
+          {isRenderingCached && !isLocal && (
+            <View style={styles.cachedLabel}>
+              <Text style={styles.cachedLabelText}>Cached</Text>
+            </View>
+          )}
         </View>
+
+
+
       </TouchableOpacity>
     );
-  }, [localPayments, retryingPayments, queuedPayments, handlePaymentUpload]);
+  }, [localPayments, retryingPayments, queuedPayments, users, handlePaymentUpload]);
 
   const renderMonthSection = ({ item }: { item: GroupedPayments }) => {
-    if (isApiLoading && isInitialLoad) {
-      return (
-        <View style={styles.monthSection}>
-          <View style={styles.monthHeader}>
-            <View style={styles.monthHeaderLeft}>
-              <Ionicons name="chevron-down" size={24} color="#ccc" />
-              <View style={[styles.loadingPlaceholder, { width: 100 }]} />
-            </View>
-            <View style={styles.monthTotalContainer}>
-              <View style={[styles.loadingPlaceholder, { width: 80 }]} />
-              <View style={[styles.loadingPlaceholder, { width: 60 }]} />
-            </View>
-          </View>
-          {item.data.map(payment => (
-            <View key={payment.id} style={[styles.paymentItem, styles.loadingItem]}>
-              <View style={styles.paymentHeader}>
-                <View style={styles.dateTimeContainer}>
-                  <View style={[styles.loadingPlaceholder, { width: 80 }]} />
-                  <View style={[styles.loadingPlaceholder, { width: 60 }]} />
-                </View>
-                <View style={styles.amountSection}>
-                  <View style={[styles.loadingPlaceholder, { width: 70, height: 30 }]} />
-                </View>
-              </View>
-              <View style={styles.paymentDetails}>
-                <View style={styles.paymentInfo}>
-                  <View style={[styles.loadingPlaceholder, { width: 120, marginBottom: 8 }]} />
-                  <View style={[styles.loadingPlaceholder, { width: 80 }]} />
-                </View>
-              </View>
-            </View>
-          ))}
-        </View>
-      );
-    }
-
     const isExpanded = expandedMonths[item.title] ?? true;
 
     // Filter out local payments from the month's data
@@ -1033,7 +1006,7 @@ const OverallPayment: React.FC = () => {
         {isExpanded && (
           <FlatList
             data={onlinePayments}
-            renderItem={renderReceiptItem}
+            renderItem={({ item }) => renderReceiptItem({ item }, isApiLoading)}
             keyExtractor={receipt => receipt.id}
             scrollEnabled={false}
           />
@@ -1774,6 +1747,42 @@ const styles = StyleSheet.create({
   },
   actionButton: { // Renamed from historyButton
     padding: 8,
+  },
+  statusLabel: {
+    // This style is now for an inline-block element
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  statusLabelOnline: {
+    backgroundColor: '#2E7D32', // Dark green
+  },
+  statusLabelCached: {
+    backgroundColor: '#ffd700', // Gold/yellow
+  },
+  statusLabelText: {
+    fontWeight: 'bold',
+    fontSize: 12,
+  },
+  statusLabelTextOnline: {
+    color: 'white',
+  },
+  statusLabelTextCached: {
+    color: '#333', // Dark text for contrast
+  },
+  cachedLabel: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    backgroundColor: 'rgb(231, 192, 101)', // A semi-transparent gold/yellow
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 5,
+  },
+  cachedLabelText: {
+    color: 'rgb(255, 255, 255)',
+    fontSize: 14,
+    fontWeight: 'bold',
   },
 });
 
