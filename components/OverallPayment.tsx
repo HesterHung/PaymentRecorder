@@ -1256,22 +1256,34 @@ const OverallPayment: React.FC = () => {
                 color="#666"
               />
             </View>
-            {isApiLoading ? (
-              <View style={styles.balanceLoadingContainer}>
-                <ActivityIndicator size="large" color="#666" />
+
+            {/* NEW: Conditionally render "updating" text */}
+            {(isApiLoading) && (
+              <View style={styles.updatingContainer}>
+                <Text style={styles.updatingText}>updating from server...</Text>
+                {<ActivityIndicator size={15} color="#888" />}
               </View>
-            ) : (
-              <>
-                <Text style={styles.balanceAmount}>
-                  {isBalanceVisible ? formatBalance(totalBalance) : '•••••'}
-                </Text>
-                <Text style={styles.balanceSubtitle}>
-                  {isBalanceVisible
-                    ? <BalanceSummaryText balance={totalBalance} />
-                    : '***'}
-                </Text>
-              </>
             )}
+
+            {/* The balance amount is now ALWAYS visible */}
+            <Text style={styles.balanceAmount}>
+              {isBalanceVisible ? formatBalance(totalBalance) : '•••••'}
+            </Text>
+            <Text style={styles.balanceSubtitle}>
+              {isBalanceVisible
+                ? <BalanceSummaryText balance={totalBalance} />
+                : '***'}
+            </Text>
+
+            <View style={[
+              styles.statusLabelContainer,
+              (isApiLoading || isOffline) ? styles.statusLabelCached : styles.statusLabelOnline, {bottom: 15, right: 15}
+            ]}>
+              <Text style={styles.statusLabelText}>
+                {(isApiLoading || isOffline) ? 'Cached' : 'Online'}
+              </Text>
+            </View>
+            
           </TouchableOpacity>
           {/* Updated lastUpdatedContainer - history button is now on the left, text on the right */}
           <View style={styles.lastUpdatedContainer}>
@@ -1775,7 +1787,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
-  actionButton: { 
+  actionButton: {
     padding: 8,
   },
   statusLabelContainer: {
@@ -1787,15 +1799,27 @@ const styles = StyleSheet.create({
     borderRadius: 5,
   },
   statusLabelOnline: {
-    backgroundColor: 'rgb(87, 167, 97)', // Dark Green
+    backgroundColor: 'rgb(162, 196, 166)', // Dark Green
   },
   statusLabelCached: {
-    backgroundColor: 'rgb(231, 192, 101)', // Gold/Yellow
+    backgroundColor: 'rgb(209, 203, 187)', // Gold/Yellow
   },
   statusLabelText: {
     color: 'white',
     fontSize: 12,
     fontWeight: 'bold',
+  },
+  updatingContainer: {
+    flexDirection: 'row', // This aligns children horizontally
+    alignItems: 'center',  // This vertically centers them next to each other
+    gap: 8,               // This adds a small space between the spinner and the text
+    marginBottom: 4,      // This maintains the space below the line
+    alignSelf: 'center'
+  },
+  updatingText: {
+    fontSize: 12,
+    color: '#888',
+    fontStyle: 'italic',
   },
 });
 
