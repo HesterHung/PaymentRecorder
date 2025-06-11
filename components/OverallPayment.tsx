@@ -535,7 +535,6 @@ const OverallPayment: React.FC = () => {
       const lastUpdatedTime = await StorageUtils.getLastUpdated();
       setLastUpdated(lastUpdatedTime);
 
-
       try {
         const lastApiPayments = await StorageUtils.getLastApiPayments();
         if (lastApiPayments && lastApiPayments.length > 0) {
@@ -975,9 +974,14 @@ const OverallPayment: React.FC = () => {
               )}
             </TouchableOpacity>
           )}
-          {isRenderingCached && !isLocal && (
-            <View style={styles.cachedLabel}>
-              <Text style={styles.cachedLabelText}>Cached</Text>
+          {!isLocal && (
+            <View style={[
+              styles.statusLabelContainer,
+              isRenderingCached ? styles.statusLabelCached : styles.statusLabelOnline
+            ]}>
+              <Text style={styles.statusLabelText}>
+                {isRenderingCached ? 'Cached' : 'Online'}
+              </Text>
             </View>
           )}
         </View>
@@ -1771,43 +1775,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
-  actionButton: { // Renamed from historyButton
+  actionButton: { 
     padding: 8,
   },
-  statusLabel: {
-    // This style is now for an inline-block element
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  statusLabelOnline: {
-    backgroundColor: '#2E7D32', // Dark green
-  },
-  statusLabelCached: {
-    backgroundColor: '#ffd700', // Gold/yellow
-  },
-  statusLabelText: {
-    fontWeight: 'bold',
-    fontSize: 12,
-  },
-  statusLabelTextOnline: {
-    color: 'white',
-  },
-  statusLabelTextCached: {
-    color: '#333', // Dark text for contrast
-  },
-  cachedLabel: {
+  statusLabelContainer: {
     position: 'absolute',
     bottom: 0,
     right: 0,
-    backgroundColor: 'rgb(231, 192, 101)', // A semi-transparent gold/yellow
-    paddingHorizontal: 8,
+    paddingHorizontal: 6,
     paddingVertical: 3,
     borderRadius: 5,
   },
-  cachedLabelText: {
-    color: 'rgb(255, 255, 255)',
-    fontSize: 14,
+  statusLabelOnline: {
+    backgroundColor: 'rgb(87, 167, 97)', // Dark Green
+  },
+  statusLabelCached: {
+    backgroundColor: 'rgb(231, 192, 101)', // Gold/Yellow
+  },
+  statusLabelText: {
+    color: 'white',
+    fontSize: 12,
     fontWeight: 'bold',
   },
 });
