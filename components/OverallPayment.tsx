@@ -492,7 +492,7 @@ const OverallPayment: React.FC = () => {
       const onlineReceipts = await APIService.getPayments();
       const currentTime = Date.now();
 
-      // Store the fetched data
+      // Store the fetched data successfully
       await StorageUtils.storeLastApiPayments(onlineReceipts);
       await StorageUtils.setLastUpdated(currentTime);
 
@@ -526,15 +526,41 @@ const OverallPayment: React.FC = () => {
           return dateB.getTime() - dateA.getTime();
         });
 
-      // Set both the current and last fetched data
       setGroupedPayments(groupedArray);
-      setLastFetchedData(groupedArray); // Add this line
+      setLastFetchedData(groupedArray);
 
     } catch (error) {
       console.error('Error loading API receipts:', error);
       setIsOffline(true);
       const lastUpdatedTime = await StorageUtils.getLastUpdated();
       setLastUpdated(lastUpdatedTime);
+
+
+      try {
+        const lastApiPayments = await StorageUtils.getLastApiPayments();
+        if (lastApiPayments && lastApiPayments.length > 0) {
+          const summary = calculatePaymentBalance(lastApiPayments);
+          const groupedArray = Object.entries(summary.monthlyBalances)
+            .map(([title, data]) => ({
+              title,
+              data: data.payments.sort((a, b) => b.paymentDatetime - a.paymentDatetime),
+              totalAmount: data.balance
+            }))
+            .sort((a, b) => {
+              const dateA = new Date(a.data[0]?.paymentDatetime || 0);
+              const dateB = new Date(b.data[0]?.paymentDatetime || 0);
+              return dateB.getTime() - dateA.getTime();
+            });
+          // Set the main display to this fallback data
+          setGroupedPayments(groupedArray);
+        } else {
+          // If there's no cached data, the list will be empty
+          setGroupedPayments([]);
+        }
+      } catch (storageError) {
+        console.error('Error reading fallback cache:', storageError);
+        setGroupedPayments([]); // If reading cache fails, list must be empty
+      }
 
       Toast.show({
         type: 'error',
@@ -1006,7 +1032,7 @@ const OverallPayment: React.FC = () => {
         {isExpanded && (
           <FlatList
             data={onlinePayments}
-            renderItem={({ item }) => renderReceiptItem({ item }, isApiLoading)}
+            renderItem={({ item }) => renderReceiptItem({ item }, isApiLoading || isOffline)}
             keyExtractor={receipt => receipt.id}
             scrollEnabled={false}
           />
