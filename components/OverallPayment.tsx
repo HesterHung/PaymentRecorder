@@ -63,6 +63,7 @@ const OverallPayment: React.FC = () => {
   const [uploadHistory, setUploadHistory] = useState<UploadHistoryEntry[]>([]);
   const [isHistoryLoading, setIsHistoryLoading] = useState(false); // Add this
   const [isDownloading, setIsDownloading] = useState(false);
+  const [localPaymentItems, setLocalPaymentItems] = useState<Payment[]>([]);
 
   // Track app state changes
   const appState = useRef<AppStateStatus>(AppState.currentState);
@@ -420,12 +421,7 @@ const OverallPayment: React.FC = () => {
   };
 
   const renderLocalPayments = () => {
-    if (!localPayments.size) return null;
-
-    const localPaymentItems = groupedPayments
-      .flatMap(group => group.data)
-      .filter(payment => localPayments.has(payment.id));
-
+    // Use the new, independent state variable.
     if (localPaymentItems.length === 0) return null;
 
     return (
@@ -439,6 +435,7 @@ const OverallPayment: React.FC = () => {
             {localPaymentItems.length} {localPaymentItems.length === 1 ? 'item' : 'items'}
           </Text>
         </View>
+        {/* Map directly over the new state variable */}
         {localPaymentItems.map(payment => (
           <View key={payment.id} style={styles.localPaymentWrapper}>
             {renderReceiptItem({ item: payment })}
@@ -454,25 +451,10 @@ const OverallPayment: React.FC = () => {
       const localReceipts = await StorageUtils.getStoredPayments();
       console.log('Local receipts loaded:', localReceipts); // Debug log
 
-      if (localReceipts && localReceipts.length > 0) {
-        setLocalPayments(new Set(localReceipts.map(p => p.id)));
-        const localSummary = calculatePaymentBalance(localReceipts);
+      // Set the dedicated state for local payment items and their IDs
+      setLocalPaymentItems(localReceipts || []);
+      setLocalPayments(new Set((localReceipts || []).map(p => p.id)));
 
-        const groupedArray = Object.entries(localSummary.monthlyBalances)
-          .map(([title, data]) => ({
-            title,
-            data: data.payments.sort((a, b) => b.paymentDatetime - a.paymentDatetime),
-            totalAmount: data.balance
-          }))
-          .sort((a, b) => {
-            const dateA = new Date(a.data[0]?.paymentDatetime || 0);
-            const dateB = new Date(b.data[0]?.paymentDatetime || 0);
-            return dateB.getTime() - dateA.getTime();
-          });
-
-        setTotalBalance(localSummary.totalBalance);
-        setGroupedPayments(groupedArray);
-      }
     } catch (error) {
       console.error('Error loading local receipts:', error);
       Toast.show({
@@ -1278,13 +1260,13 @@ const OverallPayment: React.FC = () => {
 
             <View style={[
               styles.statusLabelContainer,
-              (isApiLoading || isOffline) ? styles.statusLabelCached : styles.statusLabelOnline, {bottom: 15, right: 15}
+              (isApiLoading || isOffline) ? styles.statusLabelCached : styles.statusLabelOnline, { bottom: 15, right: 15 }
             ]}>
               <Text style={styles.statusLabelText}>
                 {(isApiLoading || isOffline) ? 'Cached' : 'Online'}
               </Text>
             </View>
-            
+
           </TouchableOpacity>
           {/* Updated lastUpdatedContainer - history button is now on the left, text on the right */}
           <View style={styles.lastUpdatedContainer}>
