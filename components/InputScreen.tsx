@@ -378,8 +378,7 @@ const InputScreen: React.FC = () => {
         whoPaid,
         amount: numericAmount,
         amountType: amountType,
-        // Use the existing payment's timestamp if editing, otherwise use current time
-        paymentDatetime: existingPayment ? existingPayment.paymentDatetime : date.getTime(),
+        paymentDatetime: date.getTime(),
       };
 
       if (existingPayment) {
