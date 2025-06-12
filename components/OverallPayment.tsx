@@ -64,6 +64,8 @@ const OverallPayment: React.FC = () => {
   const [isHistoryLoading, setIsHistoryLoading] = useState(false); // Add this
   const [isDownloading, setIsDownloading] = useState(false);
   const [localPaymentItems, setLocalPaymentItems] = useState<Payment[]>([]);
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [selectedPayments, setSelectedPayments] = useState(new Set<string>());
 
   const currentMonthTitle = new Date().toLocaleString('default', { month: 'long', year: 'numeric' });
   // Track app state changes
@@ -446,6 +448,58 @@ const OverallPayment: React.FC = () => {
     );
   };
 
+  const handleDeleteSelected = async () => {
+    if (selectedPayments.size === 0) return;
+
+    Alert.alert(
+      `Delete ${selectedPayments.size} Payments?`,
+      "This action cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const allPayments = [...localPaymentItems, ...groupedPayments.flatMap(g => g.data)];
+              const onlineToDelete: string[] = [];
+              const localToDelete: string[] = [];
+
+              selectedPayments.forEach(id => {
+                const payment = allPayments.find(p => p.id === id);
+                if (payment) {
+                  if (localPayments.has(id)) {
+                    localToDelete.push(id);
+                  } else {
+                    onlineToDelete.push(id);
+                  }
+                }
+              });
+
+              const onlineDeletePromises = onlineToDelete.map(id => APIService.deletePayment(id));
+              const localDeletePromises = localToDelete.map(id => StorageUtils.deletePayment(id));
+
+              await Promise.all([...onlineDeletePromises, ...localDeletePromises]);
+
+              Toast.show({
+                type: 'success',
+                text1: 'Success',
+                text2: `${selectedPayments.size} payments deleted.`,
+              });
+
+              await refreshData();
+            } catch (error) {
+              console.error('Error during batch delete:', error);
+              Toast.show({ type: 'error', text1: 'Error', text2: 'Failed to delete some items.' });
+            } finally {
+              handleCancelSelection(); // Exit selection mode
+            }
+          }
+        }
+      ]
+    );
+  };
+
   const loadLocalReceipts = async () => {
     setIsLocalLoading(true);
     try {
@@ -639,57 +693,30 @@ const OverallPayment: React.FC = () => {
     }
   };
 
-  const handleLongPress = async (payment: Payment) => {
-    const isLocal = localPayments.has(payment.id);
+  const handleCancelSelection = () => {
+    setIsSelectionMode(false);
+    setSelectedPayments(new Set());
+  };
 
-    Alert.alert(
-      "Delete Payment",
-      isLocal
-        ? "This payment is saved locally. Delete it permanently?"
-        : "Are you sure you want to delete this payment?",
-      [
-        {
-          text: "Cancel",
-          style: "cancel"
-        },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              if (isLocal) {
-                await StorageUtils.deletePayment(payment.id);
-                await StorageUtils.setRetryStatus(payment.id, false);  // Add this line
-                setLocalPayments(prev => {
-                  const next = new Set(prev);
-                  next.delete(payment.id);
-                  return next;
-                });
-                await loadLocalReceipts();
-                await loadApiReceipts();
-              } else {
-                await APIService.deletePayment(payment.id);
-                await loadApiReceipts();
-              }
+  const handleToggleSelection = (paymentId: string) => {
+    const newSelection = new Set(selectedPayments);
+    if (newSelection.has(paymentId)) {
+      newSelection.delete(paymentId);
+    } else {
+      newSelection.add(paymentId);
+    }
 
-              Toast.show({
-                type: 'success',
-                text1: 'Success',
-                text2: 'Payment deleted successfully',
-              });
-            } catch (error) {
-              console.error('Error deleting payment:', error);
-              Toast.show({
-                type: 'error',
-                text1: 'Error',
-                text2: 'Failed to delete payment',
-                position: 'bottom',
-              });
-            }
-          }
-        }
-      ]
-    );
+    // If no items are selected, exit selection mode
+    if (newSelection.size === 0) {
+      handleCancelSelection();
+    } else {
+      setSelectedPayments(newSelection);
+    }
+  };
+
+  const handleLongPress = (payment: Payment) => {
+    setIsSelectionMode(true);
+    handleToggleSelection(payment.id);
   };
 
   const handleResetAll = () => {
@@ -863,6 +890,7 @@ const OverallPayment: React.FC = () => {
     const isLocal = localPayments.has(item.id);
     const isRetrying = retryingPayments[item.id];
     const isQueued = queuedPayments.has(item.id);
+    const isSelected = selectedPayments.has(item.id);
 
     const date = new Date(item.paymentDatetime);
     const formattedDate = date.toLocaleDateString();
@@ -877,18 +905,30 @@ const OverallPayment: React.FC = () => {
       ? item.amount / 2
       : item.amount;
 
+    const handlePressAction = () => {
+      if (isSelectionMode) {
+        handleToggleSelection(item.id);
+      } else if (isLocal) {
+        handlePaymentUpload(item);
+      } else {
+        handlePaymentPress(item);
+      }
+    };
+
     return (
       <TouchableOpacity
         style={[
           styles.paymentItem,
-          isLocal && styles.localPaymentItem
+          isLocal && styles.localPaymentItem,
+          isSelected && styles.selectedPaymentItem // Apply selection style
         ]}
-        onPress={() => isLocal ? handlePaymentUpload(item) : handlePaymentPress(item)}
+        onPress={handlePressAction}
         onLongPress={() => handleLongPress(item)}
-        delayLongPress={500}
+        delayLongPress={300}
         activeOpacity={0.7}
         disabled={isRenderingCached}
       >
+
         <View style={styles.paymentHeader}>
           <View style={styles.dateTimeContainer}>
             <Text style={styles.paymentDate}>{formattedDate}</Text>
@@ -969,12 +1009,14 @@ const OverallPayment: React.FC = () => {
             </View>
           )}
         </View>
-
-
-
+        {isSelected && (
+          <View style={styles.checkmarkIcon}>
+            <Ionicons name="checkmark-circle" size={24} color="#rgb(116, 147, 220)" />
+          </View>
+        )}
       </TouchableOpacity>
     );
-  }, [localPayments, retryingPayments, queuedPayments, users, handlePaymentUpload]);
+  }, [localPayments, retryingPayments, queuedPayments, users, handlePaymentUpload, isSelectionMode, selectedPayments]);
 
   const renderMonthSection = ({ item }: { item: GroupedPayments }) => {
     const isExpanded = expandedMonths[item.title] ?? (item.title === currentMonthTitle);
@@ -1214,104 +1256,122 @@ const OverallPayment: React.FC = () => {
   }, [handlePaymentUpload]);
 
   return (
-    <FlatList
-      data={
-        isApiLoading && lastFetchedData.length > 0
-          ? lastFetchedData
-          : isApiLoading
-            ? getLoadingSkeletonData()
-            : groupedPayments
-      }
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={refreshData} />
-      }
-      ListHeaderComponent={
-        <View style={styles.headerContainer}>
-          <TouchableOpacity
-            style={styles.balanceCard}
-            onPress={toggleBalanceVisibility}
-            activeOpacity={0.6}
-          >
-            <View style={styles.balanceHeader}>
-              <Text style={styles.balanceTitle}>Overall Balance</Text>
-              <Ionicons
-                name={isBalanceVisible ? "eye-outline" : "eye-off-outline"}
-                size={28}
-                color="#666"
-              />
-            </View>
-
-            {/* NEW: Conditionally render "updating" text */}
-            {(isApiLoading) && (
-              <View style={styles.updatingContainer}>
-                <Text style={styles.updatingText}>updating from server...</Text>
-                {<ActivityIndicator size={15} color="#888" />}
+    <View style={{ flex: 1 }}>
+      <FlatList
+        data={
+          isApiLoading && lastFetchedData.length > 0
+            ? lastFetchedData
+            : isApiLoading
+              ? getLoadingSkeletonData()
+              : groupedPayments
+        }
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={refreshData} />
+        }
+        ListHeaderComponent={
+          <View style={styles.headerContainer}>
+            <TouchableOpacity
+              style={styles.balanceCard}
+              onPress={toggleBalanceVisibility}
+              activeOpacity={0.6}
+            >
+              <View style={styles.balanceHeader}>
+                <Text style={styles.balanceTitle}>Overall Balance</Text>
+                <Ionicons
+                  name={isBalanceVisible ? "eye-outline" : "eye-off-outline"}
+                  size={28}
+                  color="#666"
+                />
               </View>
-            )}
 
-            {/* The balance amount is now ALWAYS visible */}
-            <Text style={styles.balanceAmount}>
-              {isBalanceVisible ? formatBalance(totalBalance) : '•••••'}
-            </Text>
-            <Text style={styles.balanceSubtitle}>
-              {isBalanceVisible
-                ? <BalanceSummaryText balance={totalBalance} />
-                : '***'}
-            </Text>
+              {/* NEW: Conditionally render "updating" text */}
+              {(isApiLoading) && (
+                <View style={styles.updatingContainer}>
+                  <Text style={styles.updatingText}>updating from server...</Text>
+                  {<ActivityIndicator size={15} color="#888" />}
+                </View>
+              )}
 
-            <View style={[
-              styles.statusLabelContainer,
-              (isApiLoading || isOffline) ? styles.statusLabelCached : styles.statusLabelOnline, { bottom: 15, right: 15 }
-            ]}>
-              <Text style={styles.statusLabelText}>
-                {(isApiLoading || isOffline) ? 'Cached' : 'Online'}
+              {/* The balance amount is now ALWAYS visible */}
+              <Text style={styles.balanceAmount}>
+                {isBalanceVisible ? formatBalance(totalBalance) : '•••••'}
+              </Text>
+              <Text style={styles.balanceSubtitle}>
+                {isBalanceVisible
+                  ? <BalanceSummaryText balance={totalBalance} />
+                  : '***'}
+              </Text>
+
+              <View style={[
+                styles.statusLabelContainer,
+                (isApiLoading || isOffline) ? styles.statusLabelCached : styles.statusLabelOnline, { bottom: 15, right: 15 }
+              ]}>
+                <Text style={styles.statusLabelText}>
+                  {(isApiLoading || isOffline) ? 'Cached' : 'Online'}
+                </Text>
+              </View>
+
+            </TouchableOpacity>
+            {/* Updated lastUpdatedContainer - history button is now on the left, text on the right */}
+            <View style={styles.lastUpdatedContainer}>
+              <View style={styles.leftActionButtons}>
+                <TouchableOpacity
+                  onPress={handleDownloadData}
+                  style={styles.actionButton}
+                  disabled={isDownloading}
+                >
+                  {isDownloading ? (
+                    <ActivityIndicator size="small" color="#666" />
+                  ) : (
+                    <Ionicons name="cloud-download-outline" size={24} color="#666" />
+                  )}
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={handleHistoryButtonPress}
+                  style={styles.historyButton}
+                  disabled={isHistoryLoading}
+                >
+                  {isHistoryLoading ? (
+                    <ActivityIndicator size="small" color="#666" />
+                  ) : (
+                    <MaterialIcons name="manage-history" size={24} color="#666" />
+                  )}
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.lastUpdatedText}>
+                {isOffline ? 'Offline -' : isApiLoading ? 'Updating... Last updated:' : 'Last updated:'} {formatLastUpdated(lastUpdated)}
               </Text>
             </View>
-
-          </TouchableOpacity>
-          {/* Updated lastUpdatedContainer - history button is now on the left, text on the right */}
-          <View style={styles.lastUpdatedContainer}>
-            <View style={styles.leftActionButtons}>
-              <TouchableOpacity
-                onPress={handleDownloadData}
-                style={styles.actionButton}
-                disabled={isDownloading}
-              >
-                {isDownloading ? (
-                  <ActivityIndicator size="small" color="#666" />
-                ) : (
-                  <Ionicons name="cloud-download-outline" size={24} color="#666" />
-                )}
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={handleHistoryButtonPress}
-                style={styles.historyButton}
-                disabled={isHistoryLoading}
-              >
-                {isHistoryLoading ? (
-                  <ActivityIndicator size="small" color="#666" />
-                ) : (
-                  <MaterialIcons name="manage-history" size={24} color="#666" />
-                )}
-              </TouchableOpacity>
-            </View>
-
-            <Text style={styles.lastUpdatedText}>
-              {isOffline ? 'Offline -' : isApiLoading ? 'Updating... Last updated:' : 'Last updated:'} {formatLastUpdated(lastUpdated)}
-            </Text>
-          </View>
-          <HistoryModal />
-          {/*
+            <HistoryModal />
+            {/*
             <TouchableOpacity onPress={handleResetAll} style={styles.debugResetButton}></TouchableOpacity>
           */}
-          {renderLocalPayments()}
+            {renderLocalPayments()}
+          </View>
+        }
+        renderItem={renderMonthSection}
+        keyExtractor={(item) => item.title}
+        contentContainerStyle={styles.listContainer}
+      />
+      {isSelectionMode && (
+        <View style={styles.selectionBar}>
+          <TouchableOpacity onPress={handleCancelSelection} style={styles.selectionButton}>
+            <Ionicons name="close-circle" size={24} color="#666" />
+            <Text style={styles.selectionButtonText}>Cancel</Text>
+          </TouchableOpacity>
+          <Text style={styles.selectionCount}>
+            {selectedPayments.size} selected
+          </Text>
+          <TouchableOpacity onPress={handleDeleteSelected} style={styles.selectionButton}>
+            <Ionicons name="trash-bin" size={24} color="#FF3B30" />
+            <Text style={[styles.selectionButtonText, { color: '#FF3B30' }]}>Delete</Text>
+          </TouchableOpacity>
         </View>
-      }
-      renderItem={renderMonthSection}
-      keyExtractor={(item) => item.title}
-      contentContainerStyle={styles.listContainer}
-    />
+      )}
+    </View>
+
   );
 };
 
@@ -1804,6 +1864,52 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#888',
     fontStyle: 'italic',
+  },
+  selectedPaymentItem: {
+    borderColor: 'rgb(116, 147, 220)',
+    borderWidth: 3,
+  },
+  checkmarkIcon: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    backgroundColor: 'white',
+    borderRadius: 12,
+  },
+  selectionBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 80,
+    backgroundColor: 'white',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  selectionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    padding: 8,
+  },
+  selectionButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#666',
+  },
+  selectionCount: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#007AFF',
   },
 });
 
