@@ -65,6 +65,7 @@ const OverallPayment: React.FC = () => {
   const [isDownloading, setIsDownloading] = useState(false);
   const [localPaymentItems, setLocalPaymentItems] = useState<Payment[]>([]);
 
+  const currentMonthTitle = new Date().toLocaleString('default', { month: 'long', year: 'numeric' });
   // Track app state changes
   const appState = useRef<AppStateStatus>(AppState.currentState);
 
@@ -976,7 +977,7 @@ const OverallPayment: React.FC = () => {
   }, [localPayments, retryingPayments, queuedPayments, users, handlePaymentUpload]);
 
   const renderMonthSection = ({ item }: { item: GroupedPayments }) => {
-    const isExpanded = expandedMonths[item.title] ?? true;
+    const isExpanded = expandedMonths[item.title] ?? (item.title === currentMonthTitle);
 
     // Filter out local payments from the month's data
     const onlinePayments = item.data.filter(payment => !localPayments.has(payment.id));
