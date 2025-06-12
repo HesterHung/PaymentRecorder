@@ -16,7 +16,8 @@ import {
   Modal,
   Pressable,
   ScrollView,
-  Alert
+  Alert,
+  useColorScheme
 } from 'react-native';
 import { StorageUtils, UploadHistoryEntry } from '../utils/storage';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
@@ -31,6 +32,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { emitter } from '@/hooks/eventEmitter';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
+import { useTheme } from '@react-navigation/native';
+import { Colors } from '@/constants/Colors';
 
 const { width } = Dimensions.get('window');
 const peopleNumber = 2;
@@ -71,6 +74,8 @@ const OverallPayment: React.FC = () => {
   const currentMonthTitle = new Date().toLocaleString('default', { month: 'long', year: 'numeric' });
   // Track app state changes
   const appState = useRef<AppStateStatus>(AppState.currentState);
+  const colorScheme = useColorScheme() ?? 'light';
+  const colors = Colors[colorScheme];
 
   useEffect(() => {
     let isMounted = true;
@@ -1003,7 +1008,7 @@ const OverallPayment: React.FC = () => {
             <Ionicons
               name={isExpanded ? "chevron-down" : "chevron-forward"}
               size={24}
-              color="#666"
+              color={colors.text}
             />
             <Text style={styles.monthTitle}>{item.title}</Text>
           </View>
@@ -1202,8 +1207,547 @@ const OverallPayment: React.FC = () => {
     };
   }, []);
 
+  const styles = StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    resetButton: {
+      backgroundColor: '#FF3B30',
+      padding: 12,
+      borderRadius: 8,
+      margin: 16,
+      alignItems: 'center',
+    },
+    resetButtonText: {
+      color: 'white',
+      fontWeight: '600',
+      fontSize: 16,
+    },
+    balanceCard: {
+      margin: 16,
+      marginBottom: 0,
+      padding: 20,
+      backgroundColor: colors.card,
+      borderRadius: 16,
+      elevation: 2,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
+    },
+    balanceTitle: {
+      fontSize: 18,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    balanceAmount: {
+      fontSize: 32,
+      fontWeight: 'bold',
+      color: colors.text,
+      marginBottom: 8,
+    },
+    balanceSubtitle: {
+      fontSize: 14,
+      color: '#666',
+    },
+    monthSection: {
+      marginBottom: 0,
+    },
+    monthTitle: {
+      fontSize: 20,
+      fontWeight: 'bold',
+      color: colors.text,
+    },
+    paymentItem: {
+      backgroundColor: colors.card,
+      borderRadius: 12,
+      padding: 16,
+      marginBottom: 8,
+      elevation: 2,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.2,
+      shadowRadius: 2,
+    },
+    receiptIcon: {
+      padding: 4,
+    },
+    paymentHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 8,
+    },
+    amountContainer: {
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 16,
+    },
+    amountText: {
+      color: 'white',
+      fontWeight: '600',
+    },
+    paymentDetails: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    paymentInfo: {
+      flex: 1,
+    },
+    paymentTitle: {
+      fontSize: 16,
+      fontWeight: '500',
+      color: colors.text,
+      marginBottom: 4,
+    },
+    payerInfo: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+    },
+    payerName: {
+      fontSize: 14,
+      fontWeight: '500',
+    },
+    dateTimeContainer: {
+      gap: 10,
+      justifyContent: 'center',
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    paymentDate: {
+      fontSize: 14,
+      color: colors.text,
+    },
+    paymentTime: {
+      fontSize: 12,
+      color: colors.text,
+      marginTop: 2,
+    },
+    balanceHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 8,
+    },
+    monthHeaderLeft: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    monthHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 12,
+      paddingVertical: 8,
+      paddingHorizontal: 4,
+      color: colors.text
+    },
+    monthTotalContainer: {
+      alignItems: 'flex-end',
+    },
+    monthTotal: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    monthOwes: {
+      fontSize: 12,
+      color: colors.text,
+    },
+    centerContent: {
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    warningIcon: {
+      width: 24,
+      height: 24,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginRight: 8,
+    },
+    amountSection: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      paddingLeft: 4,
+    },
+    apiLoadingContainer: {
+      padding: 16,
+      alignItems: 'center',
+      flexDirection: 'row',
+      justifyContent: 'center',
+      gap: 8,
+    },
+    apiLoadingText: {
+      color: '#666',
+      fontSize: 14,
+    },
+    loadingContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    loadingText: {
+      marginTop: 8,
+      color: '#666',
+      fontSize: 14,
+    },
+    localPaymentsSection: {
+      backgroundColor: '#fff8dc',
+      borderRadius: 12,
+      padding: 16,
+      marginHorizontal: 12,
+      marginBottom: 5,
+      borderWidth: 1,
+      borderColor: '#ffd700',
+    },
+    localPaymentsHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 12,
+    },
+    headerLeftContent: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    localPaymentsTitle: {
+      fontSize: 18,
+      fontWeight: '600',
+      color: '#666',
+    },
+    pendingCount: {
+      fontSize: 14,
+      color: '#666',
+      fontStyle: 'italic',
+    },
+    localPaymentWrapper: {
+      marginBottom: 8,
+    },
+    localPaymentItem: {},
+    balanceLoadingText: {
+      fontSize: 14,
+      color: '#666',
+      fontWeight: '500',
+      alignSelf: 'center'
+    },
+    uploadButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      padding: 8,
+      paddingHorizontal: 12,
+      borderRadius: 8,
+      backgroundColor: '#f0f0f0',
+      minWidth: 110,
+      justifyContent: 'center',
+      height: 36,
+    },
+    uploadButtonRetrying: {
+      backgroundColor: '#e8e8e8',
+      opacity: 0.8,
+    },
+    uploadButtonText: {
+      fontSize: 12,
+      color: '#666',
+      fontWeight: '500',
+      marginLeft: 4,
+    },
+    headerContainer: {
+      marginHorizontal: -18,
+      paddingTop: 5,
+    },
+    listContainer: {
+      paddingHorizontal: 16,
+      paddingBottom: 20,
+    },
+    debugResetButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: '#FF3B30',
+      marginHorizontal: 16,
+      marginBottom: 16,
+      padding: 12,
+      borderRadius: 8,
+      gap: 8,
+    },
+    debugResetText: {
+      color: 'white',
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    uploadButtonQueued: {
+      backgroundColor: '#f0f0f0',
+      opacity: 0.8,
+    },
+    // Updated container: a row where the history button is on the left and the last updated text is on the right
+    lastUpdatedContainer: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginHorizontal: 16,
+      marginVertical: 10,
+    },
+    lastUpdatedText: {
+      fontSize: 12,
+      color: colors.text,
+      textAlign: 'right',
+      flex: 1, // This lets the text expand and push itself to the right
+      paddingLeft: 10,
+    },
+    // Updated historyButton: removed absolute positioning and let it flow naturally
+    historyButton: {
+      padding: 8,
+    },
+    loadingItem: {
+      opacity: 0.7,
+    },
+    loadingPlaceholder: {
+      backgroundColor: '#E8E8E8',
+      borderRadius: 4,
+      height: 16,
+      overflow: 'hidden',
+    },
+    shimmerContainer: {
+      padding: 16,
+      gap: 8,
+    },
+    balanceLoadingPlaceholder: {
+      height: 32,
+      width: 150,
+      marginBottom: 8,
+    },
+    subtitleLoadingPlaceholder: {
+      height: 16,
+      width: 100,
+    },
+    skeletonAnimation: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: '#F5F5F5',
+    },
+    balanceLoadingContainer: {
+      minHeight: 80,
+      justifyContent: 'center',
+    },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    modalTitle: {
+      fontSize: 18,
+      fontWeight: '600',
+      color: '#333',
+    },
+    closeButton: {
+      padding: 4,
+    },
+    historyItem: {
+      backgroundColor: '#f8f8f8',
+      padding: 12,
+      paddingLeft: 40,
+      paddingRight: 40,
+      borderRadius: 8,
+      marginBottom: 8,
+    },
+    historyHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 4,
+    },
+    historyTitle: {
+      fontSize: 16,
+      fontWeight: '500',
+      color: '#333',
+      flex: 1,
+      marginRight: 8,
+    },
+    historyStatus: {
+      fontSize: 14,
+      fontWeight: '500',
+      paddingHorizontal: 8,
+      paddingVertical: 2,
+      borderRadius: 4,
+    },
+    historyAmount: {
+      fontSize: 14,
+      color: '#666',
+      marginBottom: 4,
+    },
+    historyTimestamp: {
+      fontSize: 12,
+      color: '#888',
+    },
+    historyError: {
+      fontSize: 12,
+      color: '#F44336',
+      marginTop: 4,
+      fontStyle: 'italic',
+    },
+    emptyHistoryContainer: {
+      padding: 32,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    emptyHistoryText: {
+      marginTop: 16,
+      fontSize: 16,
+      color: '#666',
+      textAlign: 'center',
+    },
+    modalContent: {
+      backgroundColor: 'white',
+      borderRadius: 20,
+      width: '90%',
+      maxHeight: '80%', // Increased max height
+      shadowColor: '#000',
+      shadowOffset: {
+        width: 0,
+        height: 2,
+      },
+      shadowOpacity: 0.25,
+      shadowRadius: 3.84,
+      elevation: 5,
+      backfaceVisibility: 'hidden',
+      transform: [{ perspective: 5000 }],
+      marginHorizontal: 0,
+      paddingBottom: 70,
+    },
+    modalScrollContent: {
+      flex: 1,
+    },
+    modalScrollContentContainer: {
+      flexGrow: 1,
+    },
+    historyList: {
+      padding: 0,
+    },
+    modalHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      padding: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: '#eee',
+      backgroundColor: 'white', // Ensure header is opaque
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+    },
+    modalBody: {
+      padding: 5,
+      paddingHorizontal: 0,
+      margin: 5,
+    },
+    scrollView: {
+      padding: 20,
+    },
+    scrollViewContent: {
+      padding: 0,
+    },
+    historyTimeContainer: {
+      marginTop: 4,
+    },
+    leftActionButtons: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    actionButton: {
+      padding: 8,
+    },
+    statusLabelContainer: {
+      position: 'absolute',
+      bottom: 0,
+      right: 0,
+      paddingHorizontal: 6,
+      paddingVertical: 3,
+      borderRadius: 5,
+    },
+    statusLabelOnline: {
+      backgroundColor: 'rgb(162, 196, 166)', // Dark Green
+    },
+    statusLabelCached: {
+      backgroundColor: 'rgb(199, 195, 186)', // Gold/Yellow
+    },
+    statusLabelText: {
+      color: 'white',
+      fontSize: 12,
+      fontWeight: 'bold',
+    },
+    updatingContainer: {
+      flexDirection: 'row', // This aligns children horizontally
+      alignItems: 'center',  // This vertically centers them next to each other
+      gap: 8,               // This adds a small space between the spinner and the text
+      marginBottom: 4,      // This maintains the space below the line
+      alignSelf: 'center',
+    },
+    updatingText: {
+      fontSize: 12,
+      color: colors.text,
+      fontStyle: 'italic',
+    },
+    selectedPaymentItem: {
+      borderColor: 'rgb(116, 147, 220)',
+      borderWidth: 3,
+    },
+    checkmarkIcon: {
+      position: 'absolute',
+      top: 2,
+      right: 2,
+      backgroundColor: 'white',
+      borderRadius: 12,
+    },
+    selectionBar: {
+      position: 'absolute',
+      bottom: 0,
+      left: 0,
+      right: 0,
+      height: 80,
+      backgroundColor: 'white',
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 20,
+      borderTopWidth: 1,
+      borderTopColor: '#e0e0e0',
+      elevation: 10,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: -2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
+    },
+    selectionButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      padding: 8,
+    },
+    selectionButtonText: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: '#666',
+    },
+    selectionCount: {
+      fontSize: 16,
+      fontWeight: 'bold',
+      color: '#007AFF',
+    },
+  });
+
   return (
-    <View style={{ flex: 1 }}>
+    <View style={styles.container}>
       <FlatList
         data={
           isApiLoading && lastFetchedData.length > 0
@@ -1227,7 +1771,7 @@ const OverallPayment: React.FC = () => {
                 <Ionicons
                   name={isBalanceVisible ? "eye-outline" : "eye-off-outline"}
                   size={28}
-                  color="#666"
+                  color={colors.icon}
                 />
               </View>
 
@@ -1235,7 +1779,7 @@ const OverallPayment: React.FC = () => {
               {(isApiLoading) && (
                 <View style={styles.updatingContainer}>
                   <Text style={styles.updatingText}>updating from server...</Text>
-                  {<ActivityIndicator size={15} color="#888" />}
+                  {<ActivityIndicator size={15} color={colors.text} />}
                 </View>
               )}
 
@@ -1270,7 +1814,7 @@ const OverallPayment: React.FC = () => {
                   {isDownloading ? (
                     <ActivityIndicator size="small" color="#666" />
                   ) : (
-                    <Ionicons name="cloud-download-outline" size={24} color="#666" />
+                    <Ionicons name="cloud-download-outline" size={24} color={colors.icon} />
                   )}
                 </TouchableOpacity>
 
@@ -1282,7 +1826,7 @@ const OverallPayment: React.FC = () => {
                   {isHistoryLoading ? (
                     <ActivityIndicator size="small" color="#666" />
                   ) : (
-                    <MaterialIcons name="manage-history" size={24} color="#666" />
+                    <MaterialIcons name="manage-history" size={24} color={colors.icon} />
                   )}
                 </TouchableOpacity>
               </View>
@@ -1320,544 +1864,8 @@ const OverallPayment: React.FC = () => {
     </View>
 
   );
+
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-  },
-  resetButton: {
-    backgroundColor: '#FF3B30',
-    padding: 12,
-    borderRadius: 8,
-    margin: 16,
-    alignItems: 'center',
-  },
-  resetButtonText: {
-    color: 'white',
-    fontWeight: '600',
-    fontSize: 16,
-  },
-  balanceCard: {
-    margin: 16,
-    marginBottom: 0,
-    padding: 20,
-    backgroundColor: 'white',
-    borderRadius: 16,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  balanceTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
-  },
-  balanceAmount: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: 'black',
-    marginBottom: 8,
-  },
-  balanceSubtitle: {
-    fontSize: 14,
-    color: '#666',
-  },
-  monthSection: {
-    marginBottom: 0,
-  },
-  monthTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  paymentItem: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 8,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
-  },
-  receiptIcon: {
-    padding: 4,
-  },
-  paymentHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  amountContainer: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-  },
-  amountText: {
-    color: 'white',
-    fontWeight: '600',
-  },
-  paymentDetails: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  paymentInfo: {
-    flex: 1,
-  },
-  paymentTitle: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#333',
-    marginBottom: 4,
-  },
-  payerInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  payerName: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  dateTimeContainer: {
-    gap: 10,
-    justifyContent: 'center',
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  paymentDate: {
-    fontSize: 14,
-    color: '#666',
-  },
-  paymentTime: {
-    fontSize: 12,
-    color: '#888',
-    marginTop: 2,
-  },
-  balanceHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  monthHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  monthHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-    paddingVertical: 8,
-    paddingHorizontal: 4,
-  },
-  monthTotalContainer: {
-    alignItems: 'flex-end',
-  },
-  monthTotal: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#666',
-  },
-  monthOwes: {
-    fontSize: 12,
-    color: '#666',
-  },
-  centerContent: {
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  warningIcon: {
-    width: 24,
-    height: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 8,
-  },
-  amountSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingLeft: 4,
-  },
-  apiLoadingContainer: {
-    padding: 16,
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  apiLoadingText: {
-    color: '#666',
-    fontSize: 14,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 8,
-    color: '#666',
-    fontSize: 14,
-  },
-  localPaymentsSection: {
-    backgroundColor: '#fff8dc',
-    borderRadius: 12,
-    padding: 16,
-    marginHorizontal: 12,
-    marginBottom: 5,
-    borderWidth: 1,
-    borderColor: '#ffd700',
-  },
-  localPaymentsHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  headerLeftContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  localPaymentsTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#666',
-  },
-  pendingCount: {
-    fontSize: 14,
-    color: '#666',
-    fontStyle: 'italic',
-  },
-  localPaymentWrapper: {
-    marginBottom: 8,
-  },
-  localPaymentItem: {},
-  balanceLoadingText: {
-    fontSize: 14,
-    color: '#666',
-    fontWeight: '500',
-    alignSelf: 'center'
-  },
-  uploadButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    padding: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    backgroundColor: '#f0f0f0',
-    minWidth: 110,
-    justifyContent: 'center',
-    height: 36,
-  },
-  uploadButtonRetrying: {
-    backgroundColor: '#e8e8e8',
-    opacity: 0.8,
-  },
-  uploadButtonText: {
-    fontSize: 12,
-    color: '#666',
-    fontWeight: '500',
-    marginLeft: 4,
-  },
-  headerContainer: {
-    marginHorizontal: -18,
-    paddingTop: 5,
-  },
-  listContainer: {
-    paddingHorizontal: 16,
-    paddingBottom: 20,
-  },
-  debugResetButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FF3B30',
-    marginHorizontal: 16,
-    marginBottom: 16,
-    padding: 12,
-    borderRadius: 8,
-    gap: 8,
-  },
-  debugResetText: {
-    color: 'white',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  uploadButtonQueued: {
-    backgroundColor: '#f0f0f0',
-    opacity: 0.8,
-  },
-  // Updated container: a row where the history button is on the left and the last updated text is on the right
-  lastUpdatedContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginHorizontal: 16,
-    marginVertical: 10,
-  },
-  lastUpdatedText: {
-    fontSize: 12,
-    color: '#666',
-    textAlign: 'right',
-    flex: 1, // This lets the text expand and push itself to the right
-    paddingLeft: 10,
-  },
-  // Updated historyButton: removed absolute positioning and let it flow naturally
-  historyButton: {
-    padding: 8,
-  },
-  loadingItem: {
-    opacity: 0.7,
-  },
-  loadingPlaceholder: {
-    backgroundColor: '#E8E8E8',
-    borderRadius: 4,
-    height: 16,
-    overflow: 'hidden',
-  },
-  shimmerContainer: {
-    padding: 16,
-    gap: 8,
-  },
-  balanceLoadingPlaceholder: {
-    height: 32,
-    width: 150,
-    marginBottom: 8,
-  },
-  subtitleLoadingPlaceholder: {
-    height: 16,
-    width: 100,
-  },
-  skeletonAnimation: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: '#F5F5F5',
-  },
-  balanceLoadingContainer: {
-    minHeight: 80,
-    justifyContent: 'center',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
-  },
-  closeButton: {
-    padding: 4,
-  },
-  historyItem: {
-    backgroundColor: '#f8f8f8',
-    padding: 12,
-    paddingLeft: 40,
-    paddingRight: 40,
-    borderRadius: 8,
-    marginBottom: 8,
-  },
-  historyHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  historyTitle: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#333',
-    flex: 1,
-    marginRight: 8,
-  },
-  historyStatus: {
-    fontSize: 14,
-    fontWeight: '500',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  historyAmount: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 4,
-  },
-  historyTimestamp: {
-    fontSize: 12,
-    color: '#888',
-  },
-  historyError: {
-    fontSize: 12,
-    color: '#F44336',
-    marginTop: 4,
-    fontStyle: 'italic',
-  },
-  emptyHistoryContainer: {
-    padding: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emptyHistoryText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: '#666',
-    textAlign: 'center',
-  },
-  modalContent: {
-    backgroundColor: 'white',
-    borderRadius: 20,
-    width: '90%',
-    maxHeight: '80%', // Increased max height
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-    backfaceVisibility: 'hidden',
-    transform: [{ perspective: 5000 }],
-    marginHorizontal: 0,
-    paddingBottom: 70,
-  },
-  modalScrollContent: {
-    flex: 1,
-  },
-  modalScrollContentContainer: {
-    flexGrow: 1,
-  },
-  historyList: {
-    padding: 0,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-    backgroundColor: 'white', // Ensure header is opaque
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-  },
-  modalBody: {
-    padding: 5,
-    paddingHorizontal: 0,
-    margin: 5,
-  },
-  scrollView: {
-    padding: 20,
-  },
-  scrollViewContent: {
-    padding: 0,
-  },
-  historyTimeContainer: {
-    marginTop: 4,
-  },
-  leftActionButtons: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  actionButton: {
-    padding: 8,
-  },
-  statusLabelContainer: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    borderRadius: 5,
-  },
-  statusLabelOnline: {
-    backgroundColor: 'rgb(162, 196, 166)', // Dark Green
-  },
-  statusLabelCached: {
-    backgroundColor: 'rgb(199, 195, 186)', // Gold/Yellow
-  },
-  statusLabelText: {
-    color: 'white',
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  updatingContainer: {
-    flexDirection: 'row', // This aligns children horizontally
-    alignItems: 'center',  // This vertically centers them next to each other
-    gap: 8,               // This adds a small space between the spinner and the text
-    marginBottom: 4,      // This maintains the space below the line
-    alignSelf: 'center'
-  },
-  updatingText: {
-    fontSize: 12,
-    color: '#888',
-    fontStyle: 'italic',
-  },
-  selectedPaymentItem: {
-    borderColor: 'rgb(116, 147, 220)',
-    borderWidth: 3,
-  },
-  checkmarkIcon: {
-    position: 'absolute',
-    top: 2,
-    right: 2,
-    backgroundColor: 'white',
-    borderRadius: 12,
-  },
-  selectionBar: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 80,
-    backgroundColor: 'white',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
-    elevation: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  selectionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    padding: 8,
-  },
-  selectionButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#666',
-  },
-  selectionCount: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#007AFF',
-  },
-});
 
 export default OverallPayment;

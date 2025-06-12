@@ -1,15 +1,18 @@
 import { Tabs, useLocalSearchParams, usePathname, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { BackHandler } from 'react-native';
+import { BackHandler, useColorScheme } from 'react-native';
 import { useEffect } from 'react';
 import { PRIMARY_COLOR } from '@/constants/Colors';
+import { Colors } from '@/constants/Colors';
 
 export default function TabsLayout() {
   const router = useRouter();
   const pathname = usePathname();
   const { source } = useLocalSearchParams();
-
+  const colorScheme = useColorScheme() ?? 'light';
+  const colors = Colors[colorScheme];
+  
   const hideTabBar = pathname.includes('standard-input');
 
   useEffect(() => {
@@ -49,7 +52,7 @@ export default function TabsLayout() {
           tabBarInactiveTintColor: '#8E8E93',
           tabBarStyle: {
             display: hideTabBar ? 'none' : 'flex',
-            backgroundColor: '#ffffff',
+            backgroundColor: colors.bottomTabBar,
             paddingTop: 5,
             paddingBottom: 0, // Reset any extra bottom padding
             height: 60, // Set a fixed height to control tab bar size

@@ -1,19 +1,23 @@
 import React from 'react';
-import { View, TouchableOpacity, Text } from 'react-native';
+import { View, TouchableOpacity, Text, useColorScheme } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect } from 'react';
 import { AppState, Dimensions } from 'react-native';
 import { useCameraPermissions } from 'expo-camera';
 import { PRIMARY_COLOR } from '@/constants/Colors';
+import { useTheme } from '@react-navigation/native';
+import { Colors } from '@/constants/Colors';
 
 const { width } = Dimensions.get('window');
 
 export default function Page() {
     const [permission, requestPermission] = useCameraPermissions();
+    const colorScheme = useColorScheme() ?? 'light';
+    const colors = Colors[colorScheme];
 
     return (
-        <View style={{ flex: 1, backgroundColor: '#f5f5f5' }}>
+        <View style={{ flex: 1, backgroundColor: colors.background }}>
             {/* Profile Button */}
             <View style={{
                 position: 'absolute',
