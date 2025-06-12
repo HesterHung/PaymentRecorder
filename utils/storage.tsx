@@ -258,15 +258,19 @@ export class StorageUtils {
     }
   }
 
-  static async savePayment(payment: Omit<Payment, 'id'>): Promise<void> {
+  static async savePayment(payment: Omit<Payment, 'id'>): Promise<Payment> { // 1. Change return type from void to Payment
     try {
       const payments = await this.getStoredPayments();
       const newPayment: Payment = {
         ...payment,
-        id: generateUniqueId(), // Implement this function
+        id: generateUniqueId(),
       };
       payments.push(newPayment);
       await AsyncStorage.setItem(STORAGE_KEYS.PAYMENTS, JSON.stringify(payments));
+
+      // 2. Return the newly created payment object
+      return newPayment;
+
     } catch (error) {
       console.error('Error storing payment:', error);
       throw error;

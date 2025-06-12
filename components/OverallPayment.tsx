@@ -56,7 +56,7 @@ const OverallPayment: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false); // RefreshControl state
   const [queuedPayments, setQueuedPayments] = useState<Set<string>>(new Set());
   const [lastUpdated, setLastUpdated] = useState<number | null>(null);
-  const [isOffline, setIsOffline] = useState(false);
+  const [isOffline, setIsOffline] = useState(false); //currently it is only used for the last updated text
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [lastFetchedData, setLastFetchedData] = useState<GroupedPayments[]>([]);
   const [isHistoryModalVisible, setIsHistoryModalVisible] = useState(false);
@@ -66,10 +66,83 @@ const OverallPayment: React.FC = () => {
   const [localPaymentItems, setLocalPaymentItems] = useState<Payment[]>([]);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedPayments, setSelectedPayments] = useState(new Set<string>());
+  const [isApiAvailable, setIsApiAvailable] = useState(false);
 
   const currentMonthTitle = new Date().toLocaleString('default', { month: 'long', year: 'numeric' });
   // Track app state changes
   const appState = useRef<AppStateStatus>(AppState.currentState);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const checkApiStatus = async () => {
+      if (!isMounted) return;
+      const available = await APIService.checkApiAvailability();
+      if (isMounted) {
+        setIsApiAvailable(available);
+      }
+    };
+
+    // Check immediately on component mount
+    checkApiStatus();
+
+    // Then check every 30 seconds
+    const intervalId = setInterval(checkApiStatus, 10000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(intervalId);
+    };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const checkRetryAndQueue = async () => {
+      if (!isMounted) return;
+
+      // ✨ THE GATE: If API is not available, do nothing.
+      if (!isApiAvailable) {
+        console.log('API not available, skipping queue check.');
+        return;
+      }
+
+      try {
+        const retryStatus = await StorageUtils.getRetryStatus();
+        const isAnyRetrying = Object.values(retryStatus).some(status => status === true);
+
+        if (!isAnyRetrying) {
+          const queue = await StorageUtils.getUploadQueue();
+          if (queue.length > 0) {
+            const nextPaymentId = queue[0];
+            console.log(`API is available, processing next item from queue: ${nextPaymentId}`);
+
+            // --- ATOMIC-LIKE OPERATION ---
+            await StorageUtils.setRetryStatus(nextPaymentId, true);
+            await StorageUtils.removeFromUploadQueue(nextPaymentId);
+
+            const payments = await StorageUtils.getStoredPayments();
+            const paymentToUpload = payments.find(p => p.id === nextPaymentId);
+
+            if (paymentToUpload) {
+              await handlePaymentUpload(paymentToUpload);
+            } else {
+              await StorageUtils.setRetryStatus(nextPaymentId, false);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error in checkRetryAndQueue:', error);
+      }
+    };
+
+    const intervalId = setInterval(checkRetryAndQueue, 10000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(intervalId);
+    };
+  }, [isApiAvailable]);
 
   useEffect(() => {
     const loadLastFetchedData = async () => {
@@ -146,112 +219,6 @@ const OverallPayment: React.FC = () => {
     });
 
     return () => unsubscribe();
-  }, []);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    const checkRetryAndQueue = async () => {
-      if (!isMounted) return;
-
-      try {
-        const retryStatus = await StorageUtils.getRetryStatus();
-        const isAnyRetrying = Object.values(retryStatus).some(status => status === true);
-
-        if (!isAnyRetrying) {
-          // Get the upload queue
-          const queue = await StorageUtils.getUploadQueue();
-
-          if (queue.length > 0) {
-            // Get the first payment in queue
-            const nextPaymentId = queue[0];
-
-            // Remove from queue
-            await StorageUtils.removeFromUploadQueue(nextPaymentId);
-            setQueuedPayments(prev => {
-              const next = new Set(prev);
-              next.delete(nextPaymentId);
-              return next;
-            });
-
-            // Set retry status for this payment
-            await StorageUtils.setRetryStatus(nextPaymentId, true);
-
-            // Get the payment details
-            const payments = await StorageUtils.getStoredPayments();
-            const nextPayment = payments.find(p => p.id === nextPaymentId);
-
-            if (nextPayment) {
-              // Trigger upload for this payment
-              handlePaymentUpload(nextPayment);
-
-              // Update UI states
-              setRetryingPayments(prev => ({
-                ...prev,
-                [nextPaymentId]: true
-              }));
-            }
-          }
-          renderLocalPayments();
-        }
-      } catch (error) {
-        console.error('Error checking retry status and queue:', error);
-      }
-    };
-
-    // Check initially
-    checkRetryAndQueue();
-
-    // Set up interval
-    const intervalId = setInterval(checkRetryAndQueue, 3000); // Check every 5 seconds
-
-    return () => {
-      isMounted = false;
-      clearInterval(intervalId);
-    };
-  }, []); // Empty dependency array means this runs once on mount
-
-  useEffect(() => {
-    let isMounted = true;
-
-    const checkStatuses = async () => {
-      if (!isMounted) return;
-
-      try {
-        // Get both statuses in parallel
-        const [queue, retryStatus] = await Promise.all([
-          StorageUtils.getUploadQueue(),
-          StorageUtils.getRetryStatus()
-        ]);
-
-        // Update queue status if changed
-        setQueuedPayments(prevQueue => {
-          const newQueue = new Set(queue);
-          return areQueuesEqual(prevQueue, newQueue) ? prevQueue : newQueue;
-        });
-
-        // Update retry status if changed
-        setRetryingPayments(prevStatus => {
-          if (JSON.stringify(prevStatus) !== JSON.stringify(retryStatus)) {
-            return retryStatus;
-          }
-          return prevStatus;
-        });
-      } catch (error) {
-        console.error('Error checking statuses:', error);
-      }
-    };
-
-    // Check initially
-    checkStatuses();
-
-    // Check every 5 seconds
-    const intervalId = setInterval(checkStatuses, 3000);
-
-    return () => {
-      isMounted = false;
-      clearInterval(intervalId);
-    };
   }, []);
 
   useEffect(() => {
@@ -565,9 +532,12 @@ const OverallPayment: React.FC = () => {
 
       setGroupedPayments(groupedArray);
       setLastFetchedData(groupedArray);
+      setIsApiAvailable(true);
 
     } catch (error) {
+
       console.error('Error loading API receipts:', error);
+      setIsApiAvailable(false);
       setIsOffline(true);
       const lastUpdatedTime = await StorageUtils.getLastUpdated();
       setLastUpdated(lastUpdatedTime);
@@ -597,6 +567,8 @@ const OverallPayment: React.FC = () => {
       } catch (storageError) {
         console.error('Error reading fallback cache:', storageError);
         setGroupedPayments([]); // If reading cache fails, list must be empty
+      } finally {
+        setIsApiLoading(false);
       }
 
       Toast.show({
@@ -798,74 +770,69 @@ const OverallPayment: React.FC = () => {
   };
 
   const handlePaymentUpload = async (payment: Payment) => {
+    if (!isApiAvailable) {
+      Toast.show({
+        type: 'error',
+        text1: 'API is Not Ready',
+        text2: 'Please try again when you are online.',
+        position: 'bottom',
+      });
+      return;
+    }
     try {
-      // First check if this specific payment is already being processed
-      if (retryingPayments[payment.id]) {
-        console.log('Payment is already being processed');
-        return;
-      }
-
-      // Update retry status
-      setRetryingPayments(prev => ({
-        ...prev,
-        [payment.id]: true
-      }));
-
       const paymentData = {
         title: payment.title,
         whoPaid: payment.whoPaid,
         amount: payment.amount,
         amountType: payment.amountType,
-        paymentDatetime: payment.paymentDatetime
+        paymentDatetime: payment.paymentDatetime,
       };
 
-      if (!isApiLoading) {
-        await APIService.savePayment(paymentData, 10000);
+      // Perform the upload
+      await APIService.savePayment(paymentData, 15000); // 15-second timeout
 
-        // If successful, remove from local storage and retry status
-        await StorageUtils.deletePayment(payment.id);
-        await StorageUtils.setRetryStatus(payment.id, false);
+      // ---- SUCCESS ----
+      // 1. Permanently delete the local payment.
+      await StorageUtils.deletePayment(payment.id);
 
-        // Clear this payment's retry status
-        setRetryingPayments(prev => {
-          const next = { ...prev };
-          delete next[payment.id];
-          return next;
-        });
+      // 2. Release the lock.
+      await StorageUtils.setRetryStatus(payment.id, false);
 
-        Toast.show({
-          type: 'success',
-          text1: 'Success',
-          text2: `${payment.title || 'Untitled'} uploaded successfully`,
-          position: 'bottom',
-        });
-
-        // Refresh the local payments display
-        await loadLocalReceipts();
-        emitter.emit('paymentsUpdated');
-      } else {
-        Toast.show({
-          type: 'error',
-          text1: 'Uplaod Fail',
-          text2: `API is not ready yet. Try again later.`,
-          position: 'bottom',
-        });
-      }
-
-
-    } catch (error) {
-      console.error('Upload retry failed:', error);
-
-      // Clear retry status for this payment
+      // 3. Update UI to reflect completion.
       setRetryingPayments(prev => {
         const next = { ...prev };
         delete next[payment.id];
         return next;
       });
 
+      Toast.show({
+        type: 'success',
+        text1: 'Upload Success',
+        text2: `'${payment.title || 'Untitled'}' uploaded from queue.`,
+        position: 'bottom',
+      });
+
+      // Notify other parts of the app that data has changed.
+      emitter.emit('paymentsUpdated');
+
+    } catch (error) {
+      console.error(`Upload failed for payment ${payment.id}:`, error);
+
+      // ---- FAILURE ----
+      // 1. IMPORTANT: Release the lock so it can be retried later.
       await StorageUtils.setRetryStatus(payment.id, false);
 
-      // Add to history
+      // 2. Update the UI to show the retry has stopped for now.
+      setRetryingPayments(prev => {
+        const next = { ...prev };
+        delete next[payment.id];
+        return next;
+      });
+
+      // 3. Add the payment back to the end of the queue to be tried again later.
+      await StorageUtils.addToUploadQueue(payment.id);
+
+      // Add a record to the failure history
       await StorageUtils.addUploadHistory({
         paymentId: payment.id,
         timestamp: Date.now(),
@@ -873,18 +840,11 @@ const OverallPayment: React.FC = () => {
         paymentTitle: payment.title,
         amount: payment.amount,
         status: 'failed',
-        error: error instanceof Error ? error.message : 'Upload Failed'
-      });
-
-      // Add back to queue for retry
-      await StorageUtils.addToUploadQueue(payment.id);
-      setQueuedPayments(prev => {
-        const next = new Set(prev);
-        next.add(payment.id);
-        return next;
+        error: error instanceof Error ? error.message : 'Upload Failed',
       });
     }
   };
+
 
   const renderReceiptItem = useCallback(({ item }: { item: Payment }, isRenderingCached?: boolean) => {
     const isLocal = localPayments.has(item.id);
@@ -1212,48 +1172,35 @@ const OverallPayment: React.FC = () => {
 
 
   useEffect(() => {
+    const checkApiStatus = async () => {
+      const available = await APIService.checkApiAvailability();
+      setIsApiAvailable(available);
+    };
+
     const subscription = AppState.addEventListener('change', async (nextAppState) => {
       if (
-        (appState.current === 'active' &&
-          (nextAppState === 'background' || nextAppState === 'inactive'))
+        appState.current === 'active' &&
+        (nextAppState === 'background' || nextAppState === 'inactive')
       ) {
-        // App is going to background
-        console.log('App going to background - pausing uploads');
-        try {
-          await StorageUtils.handleAppBackground();
-          // Update UI states
-          setRetryingPayments({});
-          const queue = await StorageUtils.getUploadQueue();
-          setQueuedPayments(new Set(queue));
-        } catch (error) {
-          console.error('Error handling background transition:', error);
-        }
+        // App is going to background. This part is useful.
+        await StorageUtils.handleAppBackground();
       } else if (
-        (appState.current.match(/inactive|background/) &&
-          nextAppState === 'active')
+        appState.current.match(/inactive|background/) &&
+        nextAppState === 'active'
       ) {
-        // App is coming to foreground
-        console.log('App coming to foreground - resuming uploads');
-        try {
-          const nextPaymentId = await StorageUtils.handleAppForeground();
-          if (nextPaymentId) {
-            const payments = await StorageUtils.getStoredPayments();
-            const paymentToProcess = payments.find(p => p.id === nextPaymentId);
-            if (paymentToProcess) {
-              handlePaymentUpload(paymentToProcess);
-            }
-          }
-        } catch (error) {
-          console.error('Error handling foreground transition:', error);
-        }
+        // App is coming to foreground.
+        // ✨ FIX: Just trigger an API status check. DO NOT trigger an upload.
+        console.log('App is active: Checking API status.');
+        checkApiStatus();
       }
+
       appState.current = nextAppState;
     });
 
     return () => {
       subscription.remove();
     };
-  }, [handlePaymentUpload]);
+  }, []);
 
   return (
     <View style={{ flex: 1 }}>
@@ -1846,7 +1793,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgb(162, 196, 166)', // Dark Green
   },
   statusLabelCached: {
-    backgroundColor: 'rgb(209, 203, 187)', // Gold/Yellow
+    backgroundColor: 'rgb(199, 195, 186)', // Gold/Yellow
   },
   statusLabelText: {
     color: 'white',
