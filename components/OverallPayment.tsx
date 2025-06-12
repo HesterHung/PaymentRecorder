@@ -539,6 +539,7 @@ const OverallPayment: React.FC = () => {
         const lastApiPayments = await StorageUtils.getLastApiPayments();
         if (lastApiPayments && lastApiPayments.length > 0) {
           const summary = calculatePaymentBalance(lastApiPayments);
+          setTotalBalance(summary.totalBalance);
           const groupedArray = Object.entries(summary.monthlyBalances)
             .map(([title, data]) => ({
               title,
