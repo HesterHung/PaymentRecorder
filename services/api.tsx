@@ -94,19 +94,27 @@ export class APIService {
     // In api.tsx, add this method:
 
     static async checkApiAvailability(): Promise<boolean> {
+        const controller = new AbortController();
+        // Manually create a 5-second timeout that calls the abort signal
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+
         try {
             const response = await fetch(`${this.BASE_URL}/records`, {
                 method: 'GET',
                 headers: {
                     'Accept': 'application/json',
                 },
-                // Short timeout for availability check
-                signal: AbortSignal.timeout(5000)
+                // Use the signal from the controller we created
+                signal: controller.signal
             });
             return response.ok;
         } catch (error) {
+            // This will catch the 'AbortError' from the timeout, or any other network error
             console.log('API not available:', error);
             return false;
+        } finally {
+            // IMPORTANT: Always clear the timeout when the function finishes
+            clearTimeout(timeoutId);
         }
     }
 

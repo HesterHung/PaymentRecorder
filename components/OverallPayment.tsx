@@ -141,7 +141,7 @@ const OverallPayment: React.FC = () => {
       }
     };
 
-    const intervalId = setInterval(checkRetryAndQueue, 10000);
+    const intervalId = setInterval(checkRetryAndQueue, 5000);
 
     return () => {
       isMounted = false;
@@ -775,6 +775,13 @@ const OverallPayment: React.FC = () => {
   };
 
   const handlePaymentUpload = async (payment: Payment) => {
+    if (retryingPayments[payment.id]) {
+      return;
+    }
+    setRetryingPayments(prev => ({ ...prev, [payment.id]: true }));
+
+    // --- The rest of the function proceeds only on the FIRST click ---
+
     if (!isApiAvailable) {
       Toast.show({
         type: 'error',
@@ -782,8 +789,14 @@ const OverallPayment: React.FC = () => {
         text2: 'Please try again when you are online.',
         position: 'bottom',
       });
+      setRetryingPayments(prev => {
+        const next = { ...prev };
+        delete next[payment.id];
+        return next;
+      });
       return;
     }
+
     try {
       const paymentData = {
         title: payment.title,
@@ -793,51 +806,27 @@ const OverallPayment: React.FC = () => {
         paymentDatetime: payment.paymentDatetime,
       };
 
-      // Perform the upload
-      await APIService.savePayment(paymentData, 15000); // 15-second timeout
+      await APIService.savePayment(paymentData, 15000);
 
       // ---- SUCCESS ----
-      // 1. Permanently delete the local payment.
       await StorageUtils.deletePayment(payment.id);
-
-      // 2. Release the lock.
       await StorageUtils.setRetryStatus(payment.id, false);
-
-      // 3. Update UI to reflect completion.
-      setRetryingPayments(prev => {
-        const next = { ...prev };
-        delete next[payment.id];
-        return next;
-      });
+      emitter.emit('paymentsUpdated'); 
 
       Toast.show({
         type: 'success',
         text1: 'Upload Success',
-        text2: `'${payment.title || 'Untitled'}' uploaded from queue.`,
+        text2: `'${payment.title || 'Untitled'}' uploaded.`,
         position: 'bottom',
       });
-
-      // Notify other parts of the app that data has changed.
-      emitter.emit('paymentsUpdated');
 
     } catch (error) {
       console.error(`Upload failed for payment ${payment.id}:`, error);
 
       // ---- FAILURE ----
-      // 1. IMPORTANT: Release the lock so it can be retried later.
       await StorageUtils.setRetryStatus(payment.id, false);
-
-      // 2. Update the UI to show the retry has stopped for now.
-      setRetryingPayments(prev => {
-        const next = { ...prev };
-        delete next[payment.id];
-        return next;
-      });
-
-      // 3. Add the payment back to the end of the queue to be tried again later.
       await StorageUtils.addToUploadQueue(payment.id);
 
-      // Add a record to the failure history
       await StorageUtils.addUploadHistory({
         paymentId: payment.id,
         timestamp: Date.now(),
@@ -846,6 +835,13 @@ const OverallPayment: React.FC = () => {
         amount: payment.amount,
         status: 'failed',
         error: error instanceof Error ? error.message : 'Upload Failed',
+      });
+
+    } finally {
+      setRetryingPayments(prev => {
+        const next = { ...prev };
+        delete next[payment.id];
+        return next;
       });
     }
   };
