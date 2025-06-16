@@ -96,7 +96,7 @@ export class APIService {
     static async checkApiAvailability(): Promise<boolean> {
         const controller = new AbortController();
         // Manually create a 5-second timeout that calls the abort signal
-        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        //const timeoutId = setTimeout(() => controller.abort(), 15000);
 
         try {
             const response = await fetch(`${this.BASE_URL}/records`, {
@@ -114,7 +114,7 @@ export class APIService {
             return false;
         } finally {
             // IMPORTANT: Always clear the timeout when the function finishes
-            clearTimeout(timeoutId);
+            //clearTimeout(timeoutId);
         }
     }
 

@@ -25,7 +25,7 @@ import { Payment, GroupedPayments, CONSTANTS } from '../types/payment';
 import { router, useFocusEffect } from 'expo-router';
 import userStorage from '@/services/userStorage';
 import { BalanceSummaryText, calculatePaymentBalance, formatBalance } from '@/utils/paymentCalculator';
-import { USER_COLORS } from '@/constants/Colors';
+import { PRIMARY_COLOR, USER_COLORS } from '@/constants/Colors';
 import Toast from 'react-native-toast-message';
 import APIService from '@/services/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -141,7 +141,7 @@ const OverallPayment: React.FC = () => {
       }
     };
 
-    const intervalId = setInterval(checkRetryAndQueue, 5000);
+    const intervalId = setInterval(checkRetryAndQueue, 20000);
 
     return () => {
       isMounted = false;
@@ -972,7 +972,7 @@ const OverallPayment: React.FC = () => {
         </View>
         {isSelected && (
           <View style={styles.checkmarkIcon}>
-            <Ionicons name="checkmark-circle" size={24} color="#rgb(116, 147, 220)" />
+            <Ionicons name="checkmark-circle" size={24} color={PRIMARY_COLOR} />
           </View>
         )}
       </TouchableOpacity>
@@ -1245,7 +1245,7 @@ const OverallPayment: React.FC = () => {
     },
     balanceSubtitle: {
       fontSize: 14,
-      color: '#666',
+      color: colors.text,
     },
     monthSection: {
       marginBottom: 0,
@@ -1691,11 +1691,11 @@ const OverallPayment: React.FC = () => {
     },
     updatingText: {
       fontSize: 12,
-      color: colors.text,
+      color: `${colors.text}95`,
       fontStyle: 'italic',
     },
     selectedPaymentItem: {
-      borderColor: 'rgb(116, 147, 220)',
+      borderColor: PRIMARY_COLOR,
       borderWidth: 3,
     },
     checkmarkIcon: {
@@ -1710,17 +1710,15 @@ const OverallPayment: React.FC = () => {
       bottom: 0,
       left: 0,
       right: 0,
-      height: 80,
-      backgroundColor: 'white',
+      height: 75,
+      backgroundColor: `${colors.background}`,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
       paddingHorizontal: 20,
-      borderTopWidth: 1,
-      borderTopColor: '#e0e0e0',
       elevation: 10,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: -2 },
+      shadowColor: colors.text,
+      shadowOffset: { width: 0, height: -3 },
       shadowOpacity: 0.1,
       shadowRadius: 4,
     },
@@ -1733,12 +1731,12 @@ const OverallPayment: React.FC = () => {
     selectionButtonText: {
       fontSize: 16,
       fontWeight: '600',
-      color: '#666',
+      color: '#706f6f',
     },
     selectionCount: {
       fontSize: 16,
       fontWeight: 'bold',
-      color: '#007AFF',
+      color: PRIMARY_COLOR,
     },
   });
 
@@ -1775,7 +1773,7 @@ const OverallPayment: React.FC = () => {
               {(isApiLoading) && (
                 <View style={styles.updatingContainer}>
                   <Text style={styles.updatingText}>updating from server...</Text>
-                  {<ActivityIndicator size={15} color={colors.text} />}
+                  {<ActivityIndicator size={15} color={`${colors.text}95`} />}
                 </View>
               )}
 

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, TextInput, ScrollView, Image, StyleSheet, TouchableOpacity, Text, Alert, GestureResponderEvent, Platform, BackHandler, ActivityIndicator, AppState, AppStateStatus } from 'react-native';
+import { View, TextInput, ScrollView, Image, StyleSheet, TouchableOpacity, Text, Alert, GestureResponderEvent, Platform, BackHandler, ActivityIndicator, AppState, AppStateStatus, useColorScheme, KeyboardAvoidingView } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
@@ -8,12 +8,16 @@ import { StorageUtils } from '@/utils/storage';
 import Toast from 'react-native-toast-message';
 import userStorage from '@/services/userStorage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { PRIMARY_COLOR, USER_COLORS } from '@/constants/Colors';
+import { Colors, PRIMARY_COLOR, USER_COLORS } from '@/constants/Colors';
 import AmountInput from './AmountInput';
 import APIService from '@/services/api';
 import { emitter } from '@/hooks/eventEmitter';
 
 const InputScreen: React.FC = () => {
+  const colorScheme = useColorScheme() ?? 'light';
+  const colors = Colors[colorScheme];
+  const headerHeight = Platform.OS === 'ios' ? 30 : 20;
+
   const params = useLocalSearchParams();
   const [existingPayment, setExistingPayment] = useState<Payment | null>(null);
   const isEditing = params.isEditing === 'true';
@@ -509,573 +513,586 @@ const InputScreen: React.FC = () => {
     }
   }
 
+  const styles = StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    amountTypeContainer: {
+      flexDirection: 'row',
+      gap: 12,
+      marginBottom: 10,
+    },
+    amountTypeBox: {
+      flex: 1,
+      backgroundColor: 'transparent',
+      borderRadius: 12,
+      padding: 10,
+      alignItems: 'center',
+      borderWidth: 1.5,
+      borderColor: `${colors.text}35`,
+    },
+    selectedAmountTypeBox: {
+      backgroundColor: `${PRIMARY_COLOR}10`,
+      borderColor: PRIMARY_COLOR,
+      borderWidth: 2.5,
+    },
+    iconCircle: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: '#E5E7EB',
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginBottom: 8,
+    },
+    selectedIconCircle: {
+      backgroundColor: PRIMARY_COLOR,
+    },
+    amountTypeTitle: {
+      fontWeight: '600',
+      color: colors.text,
+      marginBottom: 2,
+      textAlign: 'center',
+    },
+    selectedAmountTypeTitle: {
+      color: PRIMARY_COLOR,
+    },
+    amountTypeDescription: {
+      fontSize: 11,
+      color: `${colors.text}95`,
+      textAlign: 'center',
+    },
+    selectedAmountTypeDescription: {
+      color: PRIMARY_COLOR,
+    },
+    amountInputContainer: {
+      marginTop: 8,
+      backgroundColor: colors.card,
+      borderRadius: 12,
+      elevation: 1
+    },
+    inputWrapper: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.card,
+      borderRadius: 12,
+      borderWidth: 0.5,
+      borderColor: '#E0E0E0',
+      shadowColor: '#000',
+      shadowOffset: {
+        width: 0,
+        height: 1,
+      },
+      shadowOpacity: 0.1,
+      shadowRadius: 2,
+      elevation: 2,
+    },
+    currencySymbol: {
+      paddingLeft: 16,
+      fontSize: 18,
+      color: '#374151',
+      fontWeight: '500',
+    },
+    input: {
+      flex: 1,
+      padding: 16,
+      fontSize: 16,
+      color: colors.text,
+    },
+    amountInput: {
+      textAlign: 'left',
+    },
+    amountTypeOuterContainer: {
+      position: 'relative',
+      flexDirection: 'row',
+      backgroundColor: '#F3F4F6',
+      borderRadius: 16,
+      padding: 4,
+      marginBottom: 18,
+      height: 80,
+    },
+    amountTypeSlider: {
+      position: 'absolute',
+      width: '50%',
+      height: '100%',
+      backgroundColor: PRIMARY_COLOR,
+      borderRadius: 12,
+      shadowColor: '#000',
+      shadowOffset: {
+        width: 0,
+        height: 2,
+      },
+      shadowOpacity: 0.1,
+      shadowRadius: 3,
+      elevation: 2,
+    },
+    amountTypeButton: {
+      flex: 1,
+      justifyContent: 'center',
+      zIndex: 1,
+    },
+    amountTypeContent: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 16,
+      gap: 12,
+    },
+    amountTypeTextContainer: {
+      flex: 1,
+    },
+    amountTypeText: {
+      fontSize: 16,
+      fontWeight: '600',
+      marginBottom: 2,
+    },
+    amountTypeSubtext: {
+      fontSize: 12,
+    },
+    selectedAmountTypeText: {
+      color: 'white',
+    },
+    selectedAmountTypeSubtext: {
+      color: 'rgba(255, 255, 255, 0.8)',
+    },
+    unselectedAmountTypeText: {
+      color: '#374151',
+    },
+    unselectedAmountTypeSubtext: {
+      color: '#6B7280',
+    },
+    formContainer: {
+      paddingHorizontal: 20,
+      paddingVertical: 12,
+    },
+    inputGroup: {
+      marginBottom: 14,
+    },
+    inputGroupAmount: {
+      marginBottom: 20,
+    },
+    label: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: colors.text,
+      marginBottom: 6,
+    },
+    dateButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      padding: 13,
+      backgroundColor: colors.card,
+      borderRadius: 12,
+      borderWidth: 0.5,
+      borderColor: '#E0E0E0',
+      elevation: 2
+    },
+    dateText: {
+      fontSize: 16,
+      color: colors.text
+    },
+    payerButtons: {
+      flexDirection: 'row',
+      justifyContent: 'space-around',
+      paddingHorizontal: 20,
+      marginTop: 8,
+    },
+    payerButton: {
+      alignItems: 'center',
+      gap: 8,
+    },
+    payerCircle: {
+      width: 50,
+      height: 50,
+      borderRadius: 32,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      shadowColor: '#000',
+      shadowOffset: {
+        width: 0,
+        height: 1,
+      },
+      shadowOpacity: 0.1,
+      shadowRadius: 3,
+      elevation: 2,
+    },
+    activePayerCircle: {
+      backgroundColor: USER_COLORS[0],
+      borderColor: USER_COLORS[0],
+    },
+    inactivePayerCircle: {
+      backgroundColor: colors.background,
+      borderColor: '#9CA3AF',
+    },
+    payerText: {
+      fontSize: 16,
+      marginTop: 4,
+    },
+    activePayerText: {
+      color: PRIMARY_COLOR,
+      fontWeight: '600',
+    },
+    inactivePayerText: {
+      color: '#9CA3AF',
+    },
+    imageButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: '#34C759',
+      padding: 15,
+      borderRadius: 12,
+      gap: 8,
+    },
+    imageButtonText: {
+      color: 'white',
+      fontSize: 16,
+      fontWeight: '500',
+    },
+    imageContainer: {
+      marginTop: 12,
+      borderRadius: 12,
+      overflow: 'hidden',
+    },
+    image: {
+      width: '100%',
+      height: 200,
+      borderRadius: 12,
+    },
+    screenTitle: {
+      fontSize: 24,
+      fontWeight: 'bold',
+      marginBottom: 16,
+      color: '#333',
+    },
+    buttonContainer: {
+      flexDirection: 'row',
+      gap: 12,
+      marginTop: 20,
+    },
+    button: {
+      flex: 1,
+      padding: 16,
+      borderRadius: 12,
+      alignItems: 'center',
+    },
+    submitButton: {
+      backgroundColor: PRIMARY_COLOR,
+      padding: 16,
+      borderRadius: 12,
+      alignItems: 'center',
+      marginBottom: 12,
+      width: '100%',
+      elevation: 2
+    },
+    submitButtonText: {
+      color: 'white',
+      fontSize: 16,
+      fontWeight: '600',
+    },
+    cancelButton: {
+      backgroundColor: colors.background,
+      padding: 16,
+      borderRadius: 12,
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: PRIMARY_COLOR,
+      width: '100%',
+    },
+    cancelButtonText: {
+      color: PRIMARY_COLOR,
+      fontSize: 16,
+      fontWeight: '600',
+    },
+    dateTimeContainer: {
+      flexDirection: 'row',
+      gap: 12,
+    },
+    dateTimeButton: {
+      flex: 1,
+    },
+    pageContainer: {
+      flex: 1,
+      backgroundColor: '#f5f5f5',
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 6,
+      paddingTop: Platform.OS === 'ios' ? 6 : 10,
+      paddingBottom: 0,
+      backgroundColor: colors.bottomTabBar,
+      borderBottomColor: '#E0E0E0',
+    },
+    backButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      padding: 8,
+    },
+    backButtonText: {
+      color: PRIMARY_COLOR,
+      fontSize: 17,
+      marginLeft: 4,
+    },
+    headerTitle: {
+      fontSize: 17,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    headerRightPlaceholder: {
+      width: 80,
+    },
+    selectedAmountType: {
+      backgroundColor: PRIMARY_COLOR,
+      borderColor: PRIMARY_COLOR,
+    },
+    unselectedAmountType: {
+      backgroundColor: 'white',
+      borderColor: '#E5E7EB',
+    },
+  });
+
   return (
-    <View style={styles.pageContainer}>
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={handleCancel}
-        >
-          <Ionicons name="chevron-back" size={24} color="#007AFF" />
-          <Text style={styles.backButtonText}>Back</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>
-          {existingPayment ? 'Edit Payment' : 'New Payment'}
-        </Text>
-        <View style={styles.headerRightPlaceholder} />
-      </View>
-      <ScrollView style={styles.container}>
-        <View style={styles.formContainer}>
-          {/* 1. Date Section */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Date and Time</Text>
-            <View style={styles.dateTimeContainer}>
-              <TouchableOpacity
-                style={[styles.dateButton, styles.dateTimeButton]}
-                onPress={() => setShowDatePicker(true)}
-              >
-                <Text style={styles.dateText}>{date.toLocaleDateString()}</Text>
-                <Ionicons name="calendar" size={24} color={PRIMARY_COLOR} />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.dateButton, styles.dateTimeButton]}
-                onPress={() => setShowTimePicker(true)}
-              >
-                <Text style={styles.dateText}>
-                  {date.toLocaleTimeString([], {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    second: '2-digit',
-                    hour12: false,
-                  })}
-                </Text>
-                <Ionicons name="time" size={24} color={PRIMARY_COLOR} />
-              </TouchableOpacity>
-            </View>
-
-            {showDatePicker && (
-              <DateTimePicker
-                value={date}
-                mode="date"
-                onChange={(event, selectedDate) => {
-                  setShowDatePicker(false);
-                  if (selectedDate) setDate(selectedDate);
-                }}
-              />
-            )}
-            {showTimePicker && (
-              <DateTimePicker
-                value={date}
-                mode="time"
-                is24Hour={true}
-                onChange={(event, selectedDate) => {
-                  setShowTimePicker(false);
-                  if (selectedDate) setDate(selectedDate);
-                }}
-              />
-            )}
-          </View>
-
-          {/* 4. Description Section */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Title</Text>
-            <View style={styles.inputWrapper}>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter a Title"
-                placeholderTextColor="#9CA3AF"
-                value={title}
-                onChangeText={setTitle}
-              />
-            </View>
-          </View>
-
-          {/* Who Paid Section */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Who paid?</Text>
-            <View style={styles.payerButtons}>
-              {users.map((payer) => (
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: colors.background }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={headerHeight}
+    >
+      <View style={styles.pageContainer}>
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={handleCancel}
+          >
+            <Ionicons name="chevron-back" size={24} color="#007AFF" />
+            <Text style={styles.backButtonText}>Back</Text>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>
+            {existingPayment ? 'Edit Payment' : 'New Payment'}
+          </Text>
+          <View style={styles.headerRightPlaceholder} />
+        </View>
+        <ScrollView style={styles.container}>
+          <View style={styles.formContainer}>
+            {/* 1. Date Section */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Date and Time</Text>
+              <View style={styles.dateTimeContainer}>
                 <TouchableOpacity
-                  key={payer}
-                  style={styles.payerButton}
-                  onPress={() => setWhoPaid(payer)}
+                  style={[styles.dateButton, styles.dateTimeButton]}
+                  onPress={() => setShowDatePicker(true)}
                 >
-                  <View style={[
-                    styles.payerCircle,
-                    whoPaid === payer
-                      ? {
-                        backgroundColor: USER_COLORS[users.indexOf(payer)],
-                        borderColor: USER_COLORS[users.indexOf(payer)]
-                      }
-                      : styles.inactivePayerCircle
-                  ]}>
-                    <Ionicons
-                      name={whoPaid === payer ? "person" : "person-outline"}
-                      size={28}
-                      color={whoPaid === payer ? 'white' : '#9CA3AF'}
-                    />
-                  </View>
-                  <Text style={[
-                    styles.payerText,
-                    whoPaid === payer
-                      ? { color: USER_COLORS[users.indexOf(payer)], fontWeight: '600' }
-                      : styles.inactivePayerText
-                  ]}>
-                    {payer}
-                  </Text>
+                  <Text style={styles.dateText}>{date.toLocaleDateString()}</Text>
+                  <Ionicons name="calendar" size={24} color={PRIMARY_COLOR} />
                 </TouchableOpacity>
-              ))}
-            </View>
-          </View>
 
-          <View style={styles.inputGroupAmount}>
-            <Text style={styles.label}>Amount Type</Text>
-            <View style={styles.amountTypeContainer}>
-              <TouchableOpacity
-                style={[
-                  styles.amountTypeBox,
-                  amountType === 'total' && styles.selectedAmountTypeBox
-                ]}
-                onPress={() => handleAmountTypeSelect('total')}
-              >
-                <View style={[
-                  styles.iconCircle,
-                  amountType === 'total' && styles.selectedIconCircle
-                ]}>
-                  <Ionicons
-                    name="wallet-outline"
-                    size={20}
-                    color={amountType === 'total' ? 'white' : '#6B7280'}
-                  />
-                </View>
-                <Text style={[
-                  styles.amountTypeTitle,
-                  amountType === 'total' && styles.selectedAmountTypeTitle
-                ]}>
-                  Total Amount
-                </Text>
-                <Text style={[
-                  styles.amountTypeDescription,
-                  amountType === 'total' && styles.selectedAmountTypeDescription
-                ]}>
-                  Split equally
-                </Text>
-              </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.dateButton, styles.dateTimeButton]}
+                  onPress={() => setShowTimePicker(true)}
+                >
+                  <Text style={styles.dateText}>
+                    {date.toLocaleTimeString([], {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      second: '2-digit',
+                      hour12: false,
+                    })}
+                  </Text>
+                  <Ionicons name="time" size={24} color={PRIMARY_COLOR} />
+                </TouchableOpacity>
+              </View>
 
-              <TouchableOpacity
-                style={[
-                  styles.amountTypeBox,
-                  amountType === 'specify' && styles.selectedAmountTypeBox
-                ]}
-                onPress={() => handleAmountTypeSelect('specify')}
-              >
-                <View style={[
-                  styles.iconCircle,
-                  amountType === 'specify' && styles.selectedIconCircle
-                ]}>
-                  <Ionicons
-                    name="git-branch-outline"
-                    size={20}
-                    color={amountType === 'specify' ? 'white' : '#6B7280'}
-                  />
-                </View>
-                <Text style={[
-                  styles.amountTypeTitle,
-                  amountType === 'specify' && styles.selectedAmountTypeTitle
-                ]}>
-                  Specific Amount
-                </Text>
-                <Text style={[
-                  styles.amountTypeDescription,
-                  amountType === 'specify' && styles.selectedAmountTypeDescription
-                ]}>
-                  Paid for another one
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.amountInputContainer}>
-              {amountType === 'total' ? (
-                <AmountInput
-                  value={totalAmount}
-                  onChange={setTotalAmount}
-                  placeholder="Enter total amount to split"
+              {showDatePicker && (
+                <DateTimePicker
+                  value={date}
+                  mode="date"
+                  onChange={(event, selectedDate) => {
+                    setShowDatePicker(false);
+                    if (selectedDate) setDate(selectedDate);
+                  }}
                 />
-              ) : (
-                <AmountInput
-                  value={specificAmount}
-                  onChange={setSpecificAmount}
-                  placeholder="Enter amount you pay for other"
+              )}
+              {showTimePicker && (
+                <DateTimePicker
+                  value={date}
+                  mode="time"
+                  is24Hour={true}
+                  onChange={(event, selectedDate) => {
+                    setShowTimePicker(false);
+                    if (selectedDate) setDate(selectedDate);
+                  }}
                 />
               )}
             </View>
+
+            {/* 4. Description Section */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Title</Text>
+              <View style={styles.inputWrapper}>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter a Title"
+                  placeholderTextColor="#9CA3AF"
+                  value={title}
+                  onChangeText={setTitle}
+                />
+              </View>
+            </View>
+
+            {/* Who Paid Section */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Who paid?</Text>
+              <View style={styles.payerButtons}>
+                {users.map((payer) => (
+                  <TouchableOpacity
+                    key={payer}
+                    style={styles.payerButton}
+                    onPress={() => setWhoPaid(payer)}
+                  >
+                    <View style={[
+                      styles.payerCircle,
+                      whoPaid === payer
+                        ? {
+                          backgroundColor: USER_COLORS[users.indexOf(payer)],
+                          borderColor: USER_COLORS[users.indexOf(payer)]
+                        }
+                        : styles.inactivePayerCircle
+                    ]}>
+                      <Ionicons
+                        name={whoPaid === payer ? "person" : "person-outline"}
+                        size={28}
+                        color={whoPaid === payer ? 'white' : '#9CA3AF'}
+                      />
+                    </View>
+                    <Text style={[
+                      styles.payerText,
+                      whoPaid === payer
+                        ? { color: USER_COLORS[users.indexOf(payer)], fontWeight: '600' }
+                        : styles.inactivePayerText
+                    ]}>
+                      {payer}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            <View style={styles.inputGroupAmount}>
+              <Text style={styles.label}>Amount Type</Text>
+              <View style={styles.amountTypeContainer}>
+                <TouchableOpacity
+                  style={[
+                    styles.amountTypeBox,
+                    amountType === 'total' && styles.selectedAmountTypeBox
+                  ]}
+                  onPress={() => handleAmountTypeSelect('total')}
+                >
+                  <View style={[
+                    styles.iconCircle,
+                    amountType === 'total' && styles.selectedIconCircle
+                  ]}>
+                    <Ionicons
+                      name="wallet-outline"
+                      size={20}
+                      color={amountType === 'total' ? 'white' : '#6B7280'}
+                    />
+                  </View>
+                  <Text style={[
+                    styles.amountTypeTitle,
+                    amountType === 'total' && styles.selectedAmountTypeTitle
+                  ]}>
+                    Total Amount
+                  </Text>
+                  <Text style={[
+                    styles.amountTypeDescription,
+                    amountType === 'total' && styles.selectedAmountTypeDescription
+                  ]}>
+                    Split equally
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.amountTypeBox,
+                    amountType === 'specify' && styles.selectedAmountTypeBox
+                  ]}
+                  onPress={() => handleAmountTypeSelect('specify')}
+                >
+                  <View style={[
+                    styles.iconCircle,
+                    amountType === 'specify' && styles.selectedIconCircle
+                  ]}>
+                    <Ionicons
+                      name="git-branch-outline"
+                      size={20}
+                      color={amountType === 'specify' ? 'white' : '#6B7280'}
+                    />
+                  </View>
+                  <Text style={[
+                    styles.amountTypeTitle,
+                    amountType === 'specify' && styles.selectedAmountTypeTitle
+                  ]}>
+                    Specific Amount
+                  </Text>
+                  <Text style={[
+                    styles.amountTypeDescription,
+                    amountType === 'specify' && styles.selectedAmountTypeDescription
+                  ]}>
+                    Paid for another one
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.amountInputContainer}>
+                {amountType === 'total' ? (
+                  <AmountInput
+                    value={totalAmount}
+                    onChange={setTotalAmount}
+                    placeholder="Enter total amount to split"
+                  />
+                ) : (
+                  <AmountInput
+                    value={specificAmount}
+                    onChange={setSpecificAmount}
+                    placeholder="Enter amount you pay for other"
+                  />
+                )}
+              </View>
+            </View>
+
+            {/* 5. Save/Update Expense Button */}
+            <TouchableOpacity
+              style={styles.submitButton}
+              onPress={handleSubmit}
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? (
+                <ActivityIndicator color="white" />
+              ) : (
+                <Text style={styles.submitButtonText}>
+                  {existingPayment ? 'Update Expense' : 'Save Expense'}
+                </Text>
+              )}
+            </TouchableOpacity>
+
+            {/* 6. Cancel Button */}
+            <TouchableOpacity
+              style={styles.cancelButton}
+              onPress={handleCancel}
+              disabled={isSubmitting}
+            >
+              <Text style={styles.cancelButtonText}>Cancel</Text>
+            </TouchableOpacity>
           </View>
-
-          {/* 5. Save/Update Expense Button */}
-          <TouchableOpacity
-            style={styles.submitButton}
-            onPress={handleSubmit}
-            disabled={isSubmitting}
-          >
-            {isSubmitting ? (
-              <ActivityIndicator color="white" />
-            ) : (
-              <Text style={styles.submitButtonText}>
-                {existingPayment ? 'Update Expense' : 'Save Expense'}
-              </Text>
-            )}
-          </TouchableOpacity>
-
-          {/* 6. Cancel Button */}
-          <TouchableOpacity
-            style={styles.cancelButton}
-            onPress={handleCancel}
-            disabled={isSubmitting}
-          >
-            <Text style={styles.cancelButtonText}>Cancel</Text>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-    </View>
+        </ScrollView>
+      </View>
+    </KeyboardAvoidingView>
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-  },
-  amountTypeContainer: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 10,
-  },
-  amountTypeBox: {
-    flex: 1,
-    backgroundColor: '#F3F4F6',
-    borderRadius: 12,
-    padding: 10,
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#F3F4F6',
-  },
-  selectedAmountTypeBox: {
-    backgroundColor: `${PRIMARY_COLOR}10`,
-    borderColor: PRIMARY_COLOR,
-  },
-  iconCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#E5E7EB',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  selectedIconCircle: {
-    backgroundColor: PRIMARY_COLOR,
-  },
-  amountTypeTitle: {
-    fontWeight: '600',
-    color: '#374151',
-    marginBottom: 2,
-    textAlign: 'center',
-  },
-  selectedAmountTypeTitle: {
-    color: PRIMARY_COLOR,
-  },
-  amountTypeDescription: {
-    fontSize: 11,
-    color: '#6B7280',
-    textAlign: 'center',
-  },
-  selectedAmountTypeDescription: {
-    color: PRIMARY_COLOR,
-  },
-  amountInputContainer: {
-    marginTop: 8,
-  },
-  inputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'white',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  currencySymbol: {
-    paddingLeft: 16,
-    fontSize: 18,
-    color: '#374151',
-    fontWeight: '500',
-  },
-  input: {
-    flex: 1,
-    padding: 16,
-    fontSize: 16,
-    color: '#374151',
-  },
-  amountInput: {
-    textAlign: 'left',
-  },
-  amountTypeOuterContainer: {
-    position: 'relative',
-    flexDirection: 'row',
-    backgroundColor: '#F3F4F6',
-    borderRadius: 16,
-    padding: 4,
-    marginBottom: 18,
-    height: 80,
-  },
-  amountTypeSlider: {
-    position: 'absolute',
-    width: '50%',
-    height: '100%',
-    backgroundColor: PRIMARY_COLOR,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  amountTypeButton: {
-    flex: 1,
-    justifyContent: 'center',
-    zIndex: 1,
-  },
-  amountTypeContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    gap: 12,
-  },
-  amountTypeTextContainer: {
-    flex: 1,
-  },
-  amountTypeText: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 2,
-  },
-  amountTypeSubtext: {
-    fontSize: 12,
-  },
-  selectedAmountTypeText: {
-    color: 'white',
-  },
-  selectedAmountTypeSubtext: {
-    color: 'rgba(255, 255, 255, 0.8)',
-  },
-  unselectedAmountTypeText: {
-    color: '#374151',
-  },
-  unselectedAmountTypeSubtext: {
-    color: '#6B7280',
-  },
-  formContainer: {
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-  },
-  inputGroup: {
-    marginBottom: 14,
-  },
-  inputGroupAmount: {
-    marginBottom: 20,
-  },
-  label: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 6,
-  },
-  dateButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 13,
-    backgroundColor: 'white',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-  },
-  dateText: {
-    fontSize: 16,
-    color: '#333',
-  },
-  payerButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingHorizontal: 20,
-    marginTop: 8,
-  },
-  payerButton: {
-    alignItems: 'center',
-    gap: 8,
-  },
-  payerCircle: {
-    width: 50,
-    height: 50,
-    borderRadius: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  activePayerCircle: {
-    backgroundColor: USER_COLORS[0],
-    borderColor: USER_COLORS[0],
-  },
-  inactivePayerCircle: {
-    backgroundColor: 'white',
-    borderColor: '#9CA3AF',
-  },
-  payerText: {
-    fontSize: 16,
-    marginTop: 4,
-  },
-  activePayerText: {
-    color: PRIMARY_COLOR,
-    fontWeight: '600',
-  },
-  inactivePayerText: {
-    color: '#9CA3AF',
-  },
-  imageButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#34C759',
-    padding: 15,
-    borderRadius: 12,
-    gap: 8,
-  },
-  imageButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  imageContainer: {
-    marginTop: 12,
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  image: {
-    width: '100%',
-    height: 200,
-    borderRadius: 12,
-  },
-  screenTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 16,
-    color: '#333',
-  },
-  buttonContainer: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 20,
-  },
-  button: {
-    flex: 1,
-    padding: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  submitButton: {
-    backgroundColor: PRIMARY_COLOR,
-    padding: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-    marginBottom: 12,
-    width: '100%',
-  },
-  submitButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  cancelButton: {
-    backgroundColor: '#f5f5f5',
-    padding: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: PRIMARY_COLOR,
-    width: '100%',
-  },
-  cancelButtonText: {
-    color: PRIMARY_COLOR,
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  dateTimeContainer: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  dateTimeButton: {
-    flex: 1,
-  },
-  pageContainer: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 6,
-    paddingTop: Platform.OS === 'ios' ? 6 : 10,
-    paddingBottom: 0,
-    backgroundColor: '#f5f5f5',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
-  },
-  backButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 8,
-  },
-  backButtonText: {
-    color: PRIMARY_COLOR,
-    fontSize: 17,
-    marginLeft: 4,
-  },
-  headerTitle: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: '#000',
-  },
-  headerRightPlaceholder: {
-    width: 80,
-  },
-  selectedAmountType: {
-    backgroundColor: PRIMARY_COLOR,
-    borderColor: PRIMARY_COLOR,
-  },
-  unselectedAmountType: {
-    backgroundColor: 'white',
-    borderColor: '#E5E7EB',
-  },
-});
+
 
 export default InputScreen;

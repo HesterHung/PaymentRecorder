@@ -1,6 +1,6 @@
 const tintColorLight = '#0a7ea4';
 const tintColorDark = '#fff';
-export const PRIMARY_COLOR = '#218deb';  // Add this line
+export const PRIMARY_COLOR = '#388ad1';  // Add this line
 
 export const Colors = {
   light: {
@@ -20,7 +20,7 @@ export const Colors = {
     background: '#383838',
     tint: tintColorDark,
     icon: '#cdd1d4',
-    card: '#666666',
+    card: '#545454',
     tabIconDefault: '#9BA1A6',
     tabIconSelected: tintColorDark,
     primary: PRIMARY_COLOR,  // Add this line
