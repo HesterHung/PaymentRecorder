@@ -497,33 +497,50 @@ const OverallPayment: React.FC = () => {
 
   const loadApiReceipts = async () => {
     setIsApiLoading(true);
+
+    try {
+      const lastApiPayments = await StorageUtils.getLastApiPayments();
+      if (lastApiPayments && lastApiPayments.length > 0) {
+        const summary = calculatePaymentBalance(lastApiPayments);
+        setTotalBalance(summary.totalBalance); // Update balance with cached data
+
+        const groupedArray = Object.entries(summary.monthlyBalances)
+          .map(([title, data]) => ({
+            title,
+            data: data.payments.sort((a, b) => b.paymentDatetime - a.paymentDatetime),
+            totalAmount: data.balance
+          }))
+          .sort((a, b) => {
+            const dateA = new Date(a.data[0]?.paymentDatetime || 0);
+            const dateB = new Date(b.data[0]?.paymentDatetime || 0);
+            return dateB.getTime() - dateA.getTime();
+          });
+        setGroupedPayments(groupedArray);
+      }
+    } catch (storageError) {
+      console.error('Error reading fallback cache during pre-load:', storageError);
+      // If reading the cache fails, it's safest to start empty.
+      setGroupedPayments([]);
+      setTotalBalance(0);
+    }
+
+    // --- Now, attempt to fetch live data from the API ---
     try {
       const onlineReceipts = await APIService.getPayments();
       const currentTime = Date.now();
 
-      // Store the fetched data successfully
+      // Store the newly fetched data successfully
       await StorageUtils.storeLastApiPayments(onlineReceipts);
       await StorageUtils.setLastUpdated(currentTime);
 
       setLastUpdated(currentTime);
-      setIsOffline(false);
+      setIsOffline(false); // We are online
 
-      const localReceipts = await StorageUtils.getStoredPayments();
+      // Recalculate balance and list with fresh online data
       const onlineSummary = calculatePaymentBalance(onlineReceipts);
-      setTotalBalance(onlineSummary.totalBalance);
+      setTotalBalance(onlineSummary.totalBalance); // Overwrite with live balance
 
-      const onlineIds = new Set(onlineReceipts.map(p => p.id));
-      const uniqueLocalReceipts = localReceipts.filter(p => !onlineIds.has(p.id));
-      const allReceipts = [...onlineReceipts, ...uniqueLocalReceipts];
-
-      const validReceipts = allReceipts.filter(receipt =>
-        receipt &&
-        typeof receipt.amount === 'number' &&
-        typeof receipt.paymentDatetime === 'number'
-      );
-
-      const displaySummary = calculatePaymentBalance(validReceipts);
-      const groupedArray = Object.entries(displaySummary.monthlyBalances)
+      const groupedArray = Object.entries(onlineSummary.monthlyBalances)
         .map(([title, data]) => ({
           title,
           data: data.payments.sort((a, b) => b.paymentDatetime - a.paymentDatetime),
@@ -535,54 +552,27 @@ const OverallPayment: React.FC = () => {
           return dateB.getTime() - dateA.getTime();
         });
 
-      setGroupedPayments(groupedArray);
+      setGroupedPayments(groupedArray); // Update list with live data
       setLastFetchedData(groupedArray);
       setIsApiAvailable(true);
 
     } catch (error) {
-
+      // API call failed. The cached data is already being displayed.
       console.error('Error loading API receipts:', error);
       setIsApiAvailable(false);
       setIsOffline(true);
       const lastUpdatedTime = await StorageUtils.getLastUpdated();
       setLastUpdated(lastUpdatedTime);
 
-      try {
-        const lastApiPayments = await StorageUtils.getLastApiPayments();
-        if (lastApiPayments && lastApiPayments.length > 0) {
-          const summary = calculatePaymentBalance(lastApiPayments);
-          setTotalBalance(summary.totalBalance);
-          const groupedArray = Object.entries(summary.monthlyBalances)
-            .map(([title, data]) => ({
-              title,
-              data: data.payments.sort((a, b) => b.paymentDatetime - a.paymentDatetime),
-              totalAmount: data.balance
-            }))
-            .sort((a, b) => {
-              const dateA = new Date(a.data[0]?.paymentDatetime || 0);
-              const dateB = new Date(b.data[0]?.paymentDatetime || 0);
-              return dateB.getTime() - dateA.getTime();
-            });
-          // Set the main display to this fallback data
-          setGroupedPayments(groupedArray);
-        } else {
-          // If there's no cached data, the list will be empty
-          setGroupedPayments([]);
-        }
-      } catch (storageError) {
-        console.error('Error reading fallback cache:', storageError);
-        setGroupedPayments([]); // If reading cache fails, list must be empty
-      } finally {
-        setIsApiLoading(false);
-      }
-
+      // Inform the user that the displayed data is cached.
       Toast.show({
         type: 'error',
-        text1: 'Error',
-        text2: 'Failed to load online payments',
+        text1: 'Offline Mode',
+        text2: 'Failed to load online payments. Showing cached data.',
         position: 'bottom',
       });
     } finally {
+      // Whether success or failure, the loading process is complete.
       setIsApiLoading(false);
     }
   };
