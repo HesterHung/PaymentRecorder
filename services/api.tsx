@@ -33,14 +33,21 @@ interface ApiResponse {
 
 export class APIService {
     private static BASE_URL = 'https://tr-cl4p.onrender.com/api';
+    private static DELAY_MS = 10000;
 
-    static async savePayment(payment: PaymentPayload): Promise<Response> {
+    private static async simulateDelay(delay: Boolean): Promise<void> {
+        if (delay) {
+            await new Promise(resolve => setTimeout(resolve, this.DELAY_MS));
+        }
+    }
+
+    static async savePayment(payment: PaymentPayload, delay: number = 3000): Promise<Response> {
         const endpoint = `${this.BASE_URL}/records`;
         console.log('Attempting to save to:', endpoint);
 
-        // Original POST request
+        // Use 10 second timeout (10000 milliseconds)
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 0.1);
+        const timeoutId = setTimeout(() => controller.abort(), delay); // Changed from 1 to 10000
 
         try {
             console.log('Sending POST request with payload:', payment);
@@ -54,7 +61,7 @@ export class APIService {
                 signal: controller.signal
             });
 
-            clearTimeout(timeoutId);
+            clearTimeout(timeoutId); // Clear the timeout if request completes
 
             console.log('POST response status:', response.status);
             console.log('POST response headers:', [...response.headers.entries()]);
@@ -65,18 +72,52 @@ export class APIService {
                 throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
             }
 
-            return await response.json();
+            const responseData = await response.json();
+            console.log('Success response:', responseData);
+            return responseData;
+
         } catch (error: unknown) {
             if (error instanceof Error) {
                 if (error.name === 'AbortError') {
-                    throw new Error('Request timeout');
+                    console.error('Request timed out ');
+                    throw new Error('Request timed out');
                 }
                 console.error('Full error details:', error);
                 throw error;
             }
             throw new Error('Unknown error occurred');
+        } finally {
+            clearTimeout(timeoutId); // Ensure timeout is cleared in all cases
         }
     }
+
+    // In api.tsx, add this method:
+
+    static async checkApiAvailability(): Promise<boolean> {
+        const controller = new AbortController();
+        // Manually create a 5-second timeout that calls the abort signal
+        //const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+        try {
+            const response = await fetch(`${this.BASE_URL}/records`, {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json',
+                },
+                // Use the signal from the controller we created
+                signal: controller.signal
+            });
+            return response.ok;
+        } catch (error) {
+            // This will catch the 'AbortError' from the timeout, or any other network error
+            console.log('API not available:', error);
+            return false;
+        } finally {
+            // IMPORTANT: Always clear the timeout when the function finishes
+            //clearTimeout(timeoutId);
+        }
+    }
+
     static async getPayments(): Promise<Payment[]> {
         try {
             const response = await fetch(`${this.BASE_URL}/records`);
@@ -131,7 +172,7 @@ export class APIService {
     static async updatePayment(id: string, payment: Omit<Payment, 'id'>): Promise<void> {
         // Fix 1: Use the BASE_URL constant
         const endpoint = `${this.BASE_URL}/records/${id}`;
-        
+
         try {
             // Fix 2: Send the complete payment data
             const response = await fetch(endpoint, {
@@ -146,10 +187,10 @@ export class APIService {
                     amount: payment.amount,
                     amountType: payment.amountType,
                     paymentDatetime: payment.paymentDatetime,
-                    description: "Changed payment details"
+                    description: ""
                 }),
             });
-    
+
             // Fix 3: Better error handling
             if (!response.ok) {
                 const errorText = await response.text();
@@ -165,8 +206,8 @@ export class APIService {
             throw error;
         }
     }
-    
-    
+
+
 }
 
 export default APIService;

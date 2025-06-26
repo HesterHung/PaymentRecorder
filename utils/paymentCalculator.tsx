@@ -1,9 +1,11 @@
 // utils/paymentCalculator.tsx
 
 import React, { useEffect, useState } from 'react';
-import { Text } from 'react-native';
+import { Text, useColorScheme } from 'react-native';
 import { Payment, CONSTANTS } from '@/types/payment';
 import userStorage from '@/services/userStorage';
+import { useTheme } from '@react-navigation/native';
+import { Colors } from '@/constants/Colors';
 
 export interface PaymentSummary {
     totalBalance: number;
@@ -21,7 +23,9 @@ export interface BalanceSummaryProps {
 
 export const BalanceSummaryText: React.FC<BalanceSummaryProps> = ({ balance }) => {
     const [users, setUsers] = useState<[string, string]>(['', '']);
-
+    const colorScheme = useColorScheme() ?? 'light';
+    const colors = Colors[colorScheme];
+    
     useEffect(() => {
         const loadUsers = async () => {
             const storedUsers = await userStorage.getUsers();
@@ -40,9 +44,9 @@ export const BalanceSummaryText: React.FC<BalanceSummaryProps> = ({ balance }) =
     if (balance === 0) return <Text>(settled)</Text>;
 
     if (balance > 0) {
-        return <Text>{`(${users[1]} owes)`}</Text>;
+        return <Text style={{color: colors.text}}>{`(${users[1]} owes)`}</Text>;
     } else {
-        return <Text>{`(${users[0]} owes)`}</Text>;
+        return <Text style={{color: colors.text}}>{`(${users[0]} owes)`}</Text>;
     }
 };
 

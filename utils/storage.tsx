@@ -6,15 +6,225 @@ import { CONSTANTS, Payment } from '../types/payment';
 const STORAGE_KEYS = {
   PAYMENTS: 'payments',
   PENDING_UPLOADS: 'pending_uploads',
+  API_PAYMENTS: 'api_payments', // New key for API-fetched payments
+  LAST_API_PAYMENTS: 'last_api_payments', // New key for last fetched API data
+  UPLOAD_HISTORY: 'upload_history'
 };
+const RETRY_STATUS_KEY = '@retry_status';
+const UPLOAD_QUEUE_KEY = 'upload_queue';
+
+export interface UploadHistoryEntry {
+  paymentId: string;
+  timestamp: number;          // When the upload attempt occurred
+  paymentDatetime: number;    // When the payment was created
+  status: 'success' | 'failed';
+  paymentTitle: string;
+  amount: number;
+  error?: string;
+}
 
 export class StorageUtils {
+
+  static LAST_UPDATED_KEY = 'lastUpdated';
+  static LAST_API_PAYMENTS_KEY = 'lastApiPayments';
+
+  static async handleAppBackground(): Promise<void> {
+    try {
+      // Get current state
+      const retryStatus = await this.getRetryStatus();
+      const retryingPaymentIds = Object.keys(retryStatus).filter(id => retryStatus[id]);
+
+      const payments = await this.getStoredPayments();
+
+      // Handle each payment in retry state
+      for (const paymentId of retryingPaymentIds) {
+        await this.setRetryStatus(paymentId, false);
+        await this.addToUploadQueue(paymentId);
+
+        const payment = payments.find(p => p.id === paymentId);
+        if (payment) {
+          await this.addUploadHistory({
+            paymentId: payment.id,
+            timestamp: Date.now(),
+            paymentDatetime: payment.paymentDatetime,
+            status: 'failed',
+            paymentTitle: payment.title || 'Untitled',
+            amount: payment.amount,
+            error: 'Upload interrupted - App terminated/backgrounded'
+          });
+        }
+      }
+
+      // Store current state for recovery
+      await AsyncStorage.setItem('LAST_KNOWN_STATE', JSON.stringify({
+        timestamp: Date.now(),
+        retryingPayments: retryingPaymentIds,
+        queuedPayments: await this.getUploadQueue()
+      }));
+
+      console.log('Background/termination handling completed');
+    } catch (error) {
+      console.error('Error handling background/termination state:', error);
+      throw error;
+    }
+  }
+
+  static async handleAppForeground(): Promise<string | null> {  // Changed return type
+    try {
+      // Get the upload queue
+      const queue = await this.getUploadQueue();
+      if (queue.length > 0) {
+        // Process first queued payment
+        const firstPaymentId = queue[0];
+        await this.removeFromUploadQueue(firstPaymentId);
+        return firstPaymentId;
+      }
+      return null;
+    } catch (error) {
+      console.error('Error handling foreground state:', error);
+      throw error;
+    }
+  }
+
+  static async addUploadHistory(entry: UploadHistoryEntry): Promise<void> {
+    try {
+      const history = await this.getUploadHistory();
+      history.unshift(entry); // Add new entry at the beginning
+      // Keep only last 50 entries
+      const trimmedHistory = history.slice(0, 50);
+      await AsyncStorage.setItem(STORAGE_KEYS.UPLOAD_HISTORY, JSON.stringify(trimmedHistory));
+    } catch (error) {
+      console.error('Error adding upload history:', error);
+    }
+  }
+
+  static async getUploadHistory(): Promise<UploadHistoryEntry[]> {
+    try {
+      const history = await AsyncStorage.getItem(STORAGE_KEYS.UPLOAD_HISTORY);
+      return history ? JSON.parse(history) : [];
+    } catch (error) {
+      console.error('Error getting upload history:', error);
+      return [];
+    }
+  }
+
+  static async storeApiPayments(payments: Payment[]): Promise<void> {
+    try {
+      await AsyncStorage.setItem(
+        STORAGE_KEYS.API_PAYMENTS,
+        JSON.stringify(payments)
+      );
+    } catch (error) {
+      console.error('Error storing API payments:', error);
+      throw error;
+    }
+  }
+
+  static async getApiPayments(): Promise<Payment[]> {
+    try {
+      const paymentsJson = await AsyncStorage.getItem(STORAGE_KEYS.API_PAYMENTS);
+      return paymentsJson ? JSON.parse(paymentsJson) : [];
+    } catch (error) {
+      console.error('Error getting API payments:', error);
+      return [];
+    }
+  }
+
+  static async setLastUpdated(timestamp: number): Promise<void> {
+    try {
+      await AsyncStorage.setItem(this.LAST_UPDATED_KEY, timestamp.toString());
+    } catch (error) {
+      console.error('Error saving last updated:', error);
+    }
+  }
+
+  static async getLastUpdated(): Promise<number | null> {
+    try {
+      const timestamp = await AsyncStorage.getItem(this.LAST_UPDATED_KEY);
+      return timestamp ? parseInt(timestamp, 10) : null;
+    } catch (error) {
+      console.error('Error getting last updated:', error);
+      return null;
+    }
+  }
+
+  static async setLastApiPayments(payments: Payment[]): Promise<void> {
+    try {
+      await AsyncStorage.setItem(
+        this.LAST_API_PAYMENTS_KEY,
+        JSON.stringify(payments)
+      );
+    } catch (error) {
+      console.error('Error saving last API payments:', error);
+    }
+  }
+
+  static async storeLastApiPayments(payments: Payment[]): Promise<void> {
+    try {
+      await AsyncStorage.setItem(
+        STORAGE_KEYS.LAST_API_PAYMENTS,
+        JSON.stringify(payments)
+      );
+    } catch (error) {
+      console.error('Error storing last API payments:', error);
+      throw error;
+    }
+  }
+
+  static async getLastApiPayments(): Promise<Payment[]> {
+    try {
+      const paymentsJson = await AsyncStorage.getItem(STORAGE_KEYS.LAST_API_PAYMENTS);
+      return paymentsJson ? JSON.parse(paymentsJson) : [];
+    } catch (error) {
+      console.error('Error getting last API payments:', error);
+      return [];
+    }
+  }
+
+  static async setRetryStatus(paymentId: string, isRetrying: boolean) {
+    try {
+      const currentStatus = await AsyncStorage.getItem(RETRY_STATUS_KEY);
+      const retryStatus = currentStatus ? JSON.parse(currentStatus) : {};
+
+      if (isRetrying) {
+        retryStatus[paymentId] = true;
+      } else {
+        delete retryStatus[paymentId];
+      }
+
+      await AsyncStorage.setItem(RETRY_STATUS_KEY, JSON.stringify(retryStatus));
+    } catch (error) {
+      console.error('Error setting retry status:', error);
+    }
+  }
+
+  static async getRetryStatus(): Promise<{ [key: string]: boolean }> {
+    try {
+      const status = await AsyncStorage.getItem(RETRY_STATUS_KEY);
+      return status ? JSON.parse(status) : {};
+    } catch (error) {
+      console.error('Error getting retry status:', error);
+      return {};
+    }
+  }
+
+  static async clearRetryStatus() {
+    try {
+      await AsyncStorage.removeItem(RETRY_STATUS_KEY);
+    } catch (error) {
+      console.error('Error clearing retry status:', error);
+    }
+  }
 
   static async clearAllPayments(): Promise<void> {
     try {
       await Promise.all([
         AsyncStorage.removeItem(CONSTANTS.STORAGE_KEYS.PAYMENTS),
-        AsyncStorage.removeItem(CONSTANTS.STORAGE_KEYS.PENDING_UPLOADS)
+        AsyncStorage.removeItem(CONSTANTS.STORAGE_KEYS.PENDING_UPLOADS),
+        AsyncStorage.removeItem(RETRY_STATUS_KEY),  // Add this line
+        AsyncStorage.removeItem(UPLOAD_QUEUE_KEY),   // Add this line if you have a queue
+        AsyncStorage.removeItem(this.LAST_UPDATED_KEY),
+        AsyncStorage.removeItem(STORAGE_KEYS.API_PAYMENTS), // Add this line
       ]);
     } catch (error) {
       console.error('Error clearing all payments:', error);
@@ -22,19 +232,48 @@ export class StorageUtils {
     }
   }
 
-  static async savePayment(payment: Omit<Payment, 'id'>): Promise<Payment> {
+  static async debugPrintAllStorage(): Promise<void> {
+    try {
+      const allKeys = await AsyncStorage.getAllKeys();
+      console.log('==== Debug All Storage Keys ====');
+      console.log('All keys in AsyncStorage:', allKeys);
+
+      for (const key of allKeys) {
+        const value = await AsyncStorage.getItem(key);
+        console.log(`\nKey: ${key}`);
+        console.log('Value:', value);
+      }
+      console.log('============================');
+    } catch (error) {
+      console.error('Error printing storage:', error);
+    }
+  }
+
+  static async forceResetRetryStatus(): Promise<void> {
+    try {
+      await AsyncStorage.removeItem(RETRY_STATUS_KEY);
+      console.log('Retry status forcefully reset');
+    } catch (error) {
+      console.error('Error resetting retry status:', error);
+    }
+  }
+
+  static async savePayment(payment: Omit<Payment, 'id'>): Promise<Payment> { // 1. Change return type from void to Payment
+
     try {
       const localId = `local_${generateUniqueId()}`; // Generate the ID first
       const newPayment: Payment = {
         ...payment,
-        id: localId,
+        id: generateUniqueId(),
       };
 
       const payments = await this.getStoredPayments();
       payments.push(newPayment);
       await AsyncStorage.setItem(STORAGE_KEYS.PAYMENTS, JSON.stringify(payments));
 
-      return newPayment; // Return the complete payment object with ID
+      // 2. Return the newly created payment object
+      return newPayment;
+      
     } catch (error) {
       console.error('Error storing payment:', error);
       throw error;
@@ -130,6 +369,44 @@ export class StorageUtils {
       throw error;
     }
   }
+
+  static async addToUploadQueue(paymentId: string): Promise<void> {
+    try {
+      const queue = await this.getUploadQueue();
+      if (!queue.includes(paymentId)) {
+        queue.push(paymentId);
+        await AsyncStorage.setItem(UPLOAD_QUEUE_KEY, JSON.stringify(queue));
+      }
+    } catch (error) {
+      console.error('Error adding to upload queue:', error);
+    }
+  }
+
+  static async removeFromUploadQueue(paymentId: string): Promise<void> {
+    try {
+      const queue = await this.getUploadQueue();
+      const updatedQueue = queue.filter(id => id !== paymentId);
+      await AsyncStorage.setItem(UPLOAD_QUEUE_KEY, JSON.stringify(updatedQueue));
+    } catch (error) {
+      console.error('Error removing from upload queue:', error);
+    }
+  }
+
+  static async getUploadQueue(): Promise<string[]> {
+    try {
+      const queue = await AsyncStorage.getItem(UPLOAD_QUEUE_KEY);
+      return queue ? JSON.parse(queue) : [];
+    } catch (error) {
+      console.error('Error getting upload queue:', error);
+      return [];
+    }
+  }
+
+  static async isInUploadQueue(paymentId: string): Promise<boolean> {
+    const queue = await this.getUploadQueue();
+    return queue.includes(paymentId);
+  }
+
 }
 
 function generateUniqueId(): string {

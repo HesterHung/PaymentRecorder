@@ -1,21 +1,27 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, TextInput, ScrollView, Image, StyleSheet, TouchableOpacity, Text, Alert, GestureResponderEvent, Platform, BackHandler, ActivityIndicator } from 'react-native';
+import { View, TextInput, ScrollView, Image, StyleSheet, TouchableOpacity, Text, Alert, GestureResponderEvent, Platform, BackHandler, ActivityIndicator, AppState, AppStateStatus, useColorScheme, KeyboardAvoidingView } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { CONSTANTS, Payment } from '@/types/payment';
 import { StorageUtils } from '@/utils/storage';
 import Toast from 'react-native-toast-message';
 import userStorage from '@/services/userStorage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { PRIMARY_COLOR, USER_COLORS } from '@/constants/Colors';
+import { Colors, PRIMARY_COLOR, USER_COLORS } from '@/constants/Colors';
 import AmountInput from './AmountInput';
 import APIService from '@/services/api';
+import { emitter } from '@/hooks/eventEmitter';
 
 const InputScreen: React.FC = () => {
+  const colorScheme = useColorScheme() ?? 'light';
+  const colors = Colors[colorScheme];
+  const headerHeight = Platform.OS === 'ios' ? 30 : 20;
+
   const params = useLocalSearchParams();
   const [existingPayment, setExistingPayment] = useState<Payment | null>(null);
   const isEditing = params.isEditing === 'true';
+  const isFromIndex = params.fromIndex === 'true';
 
   // Initialize state with existingPayment data
   const [title, setTitle] = useState('');
@@ -31,34 +37,117 @@ const InputScreen: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const totalAmountRef = useRef<TextInput>(null);
   const specificAmountRef = useRef<TextInput>(null);
+  // Add a ref to store the timeout ID
+  const retryTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
+  const retryInProgressRef = useRef(false); // Add this to track retry state
+
 
   useEffect(() => {
-    const loadUsers = async () => {
-      try {
-        const loadedUsers = await userStorage.getUsers();
-        setUsers(loadedUsers);
+    const handleAppStateChange = async (nextAppState: AppStateStatus) => {
+      if (nextAppState === 'inactive' || nextAppState === 'background') {
+        // Clear any ongoing retry attempt
+        if (retryTimeoutRef.current) {
+          clearTimeout(retryTimeoutRef.current);
+          retryTimeoutRef.current = undefined;
+        }
 
-        // Set the current user as the payer if not in edit mode
-        if (!existingPayment) {
-          const currentUser = userStorage.getCurrentUser();
-          if (currentUser) {
-            setWhoPaid(currentUser);
+        // If there was a retry in progress, clean it up
+        if (retryInProgressRef.current) {
+          retryInProgressRef.current = false;
+          try {
+            const payments = await StorageUtils.getStoredPayments();
+            const localPayment = payments[payments.length - 1];
+            if (localPayment?.id) {
+              await StorageUtils.setRetryStatus(localPayment.id, false);
+              await StorageUtils.addUploadHistory({
+                paymentId: localPayment.id,
+                timestamp: Date.now(),
+                paymentDatetime: localPayment.paymentDatetime,
+                status: 'failed',
+                paymentTitle: localPayment.title,
+                amount: localPayment.amount,
+                error: 'Upload interrupted - App terminated'
+              });
+            }
+          } catch (error) {
+            console.error('Error cleaning up retry status:', error);
           }
         }
-      } catch (error) {
-        console.error('Error loading users:', error);
       }
     };
 
-    loadUsers();
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
 
-    // Subscribe to user changes
-    const unsubscribe = userStorage.subscribe(() => {
-      loadUsers();
+    return () => {
+      subscription.remove();
+      // Perform cleanup on unmount
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Clear the timeout when component unmounts or when navigating away
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', nextAppState => {
+      // When app goes to background
+      if (nextAppState === 'background') {
+        // Clear any ongoing retry attempt
+        if (retryTimeoutRef.current) {
+          clearTimeout(retryTimeoutRef.current);
+          retryTimeoutRef.current = undefined;
+        }
+
+        // If there was a retry in progress, clean it up
+        if (retryInProgressRef.current) {
+          retryInProgressRef.current = false;
+          // Find and update the retry status of the payment
+          StorageUtils.getStoredPayments().then(payments => {
+            const localPayment = payments[payments.length - 1]; // Get the most recent payment
+            if (localPayment?.id) {
+              StorageUtils.setRetryStatus(localPayment.id, false);
+            }
+          }).catch(console.error);
+        }
+      }
     });
 
-    return () => unsubscribe();
-  }, [existingPayment]);
+    return () => {
+      subscription.remove();
+    };
+  }, []);
+
+  // Update the useEffect that handles existing payment
+  useEffect(() => {
+    if (params.existingPayment && !isFromIndex) {
+      try {
+        const payment = JSON.parse(params.existingPayment as string) as Payment;
+        setExistingPayment(payment);
+        setTitle(payment.title || '');
+        // Set whoPaid directly from payment data
+        setWhoPaid(payment.whoPaid);
+        setAmountType(payment.amountType as 'total' | 'specify');
+        setDate(new Date(payment.paymentDatetime));
+
+        if (payment.amountType === 'total') {
+          setTotalAmount(payment.amount.toString());
+        } else {
+          setSpecificAmount(payment.amount.toString());
+        }
+      } catch (error) {
+        console.error('Error parsing existing payment:', error);
+        Toast.show({
+          type: 'error',
+          text1: 'Error',
+          text2: 'Failed to load payment details',
+          position: 'bottom',
+        });
+      }
+    } else {
+      setDate(new Date());
+      resetForm();
+    }
+  }, [params.existingPayment]);
 
   const hasUnsavedChanges = useMemo(() => {
     return !!(title || totalAmount || specificAmount || receipt);
@@ -70,35 +159,34 @@ const InputScreen: React.FC = () => {
   }, [whoPaid]);
 
   useEffect(() => {
-    const loadInitialData = async () => {
+    const initializeUser = async () => {
       try {
-        // Load users from AsyncStorage
-        const storedUsers = await AsyncStorage.getItem('users');
-        if (storedUsers) {
-          const parsedUsers = JSON.parse(storedUsers);
-          if (parsedUsers.length >= 2) {
-            setUsers([parsedUsers[0], parsedUsers[1]]);
+        // Load users from storage
+        const storedUsers = await userStorage.getUsers();
+        setUsers(storedUsers);
+
+        // If editing an existing payment, use its payer
+        if (existingPayment) {
+          setWhoPaid(existingPayment.whoPaid);
+        }
+        // Otherwise use current user as default
+        else {
+          const currentUser = userStorage.getCurrentUser();
+          if (currentUser) {
+            setWhoPaid(currentUser);
           }
         }
-
-        // Set the current user as the payer
-        const currentUser = userStorage.getCurrentUser();
-        if (currentUser) {
-          setWhoPaid(currentUser);
-        }
       } catch (error) {
-        console.error('Error loading initial data:', error);
+        console.error('Error initializing users:', error);
       }
     };
 
-    // Only load initial data if not in edit mode
-    if (!params.existingPayment) {
-      loadInitialData();
-    }
+    initializeUser();
 
-    // Subscribe to user changes
+    // Subscribe to user changes (but don't override editing state)
     const unsubscribe = userStorage.subscribe(() => {
-      if (!params.existingPayment) {
+      // Only update default user if not editing
+      if (!existingPayment) {
         const currentUser = userStorage.getCurrentUser();
         if (currentUser) {
           setWhoPaid(currentUser);
@@ -106,23 +194,36 @@ const InputScreen: React.FC = () => {
       }
     });
 
-    // Cleanup subscription
     return () => unsubscribe();
-  }, [params.existingPayment]);
+  }, [existingPayment]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (isFromIndex) {
+        setDate(new Date());
+      }
+    }, [isFromIndex])
+  );
 
   const resetForm = useCallback(() => {
-    setTitle('');
-    const currentUser = userStorage.getCurrentUser();
-    setWhoPaid(currentUser || '');
-    setAmountType('total');
-    setTotalAmount('');
-    setSpecificAmount('');
-    setDate(new Date());
-    setReceipt(null);
+    if (isFromIndex) {
+      setExistingPayment(null);
+      setTitle('');
+      setAmountType('total');
+      setTotalAmount('');
+      setSpecificAmount('');
+      setDate(new Date());
+    }
+    // Only set whoPaid to currentUser if not editing
+    if (!existingPayment) {
+      const currentUser = userStorage.getCurrentUser();
+      setWhoPaid(currentUser || '');
+    }
     setShowDatePicker(false);
     setShowTimePicker(false);
-    setExistingPayment(null);
-  }, []);
+  }, [isFromIndex, existingPayment]); // Add existingPayment to dependencies
+
+
 
   const handleAmountTypeSelect = (type: 'total' | 'specify') => {
     setAmountType(type);
@@ -138,10 +239,11 @@ const InputScreen: React.FC = () => {
 
   // Reset form when entering the screen (except for edit mode)
   useEffect(() => {
-    if (!params.existingPayment) {
+    if (!params.existingPayment || isFromIndex) {
       resetForm();
     }
-  }, []);
+  }, [params.existingPayment, isFromIndex]); // Make sure to include dependencies for correct reactivity
+
 
   // Modified useEffect for back handler
   useEffect(() => {
@@ -160,7 +262,7 @@ const InputScreen: React.FC = () => {
               style: "destructive",
               onPress: () => {
                 resetForm();
-                router.back();
+                handleNavigateBack();
               }
             }
           ]
@@ -168,7 +270,6 @@ const InputScreen: React.FC = () => {
         return true;
       }
 
-      // Check for other unsaved changes
       if (hasUnsavedChanges) {
         Alert.alert(
           "Discard changes?",
@@ -183,7 +284,7 @@ const InputScreen: React.FC = () => {
               style: "destructive",
               onPress: () => {
                 resetForm();
-                router.back();
+                handleNavigateBack();
               }
             }
           ]
@@ -191,7 +292,7 @@ const InputScreen: React.FC = () => {
         return true;
       }
 
-      router.back();
+      handleNavigateBack();
       return true;
     };
 
@@ -201,7 +302,17 @@ const InputScreen: React.FC = () => {
     );
 
     return () => backHandler.remove();
-  }, [hasUserChanged, hasUnsavedChanges, whoPaid, resetForm]);
+  }, [hasUserChanged, hasUnsavedChanges, whoPaid, resetForm, isFromIndex, existingPayment]);
+
+  const handleNavigateBack = () => {
+    if (isFromIndex) {
+      router.back(); // or router.push("/") to go back to index
+    } else if (existingPayment) {
+      router.push("/(tabs)/overall-payment");
+    } else {
+      router.back();
+    }
+  };
 
   // Modified handleCancel function
   const handleCancel = () => {
@@ -219,11 +330,7 @@ const InputScreen: React.FC = () => {
             style: "destructive",
             onPress: () => {
               resetForm();
-              if (existingPayment) {
-                router.push("/(tabs)/overall-payment");
-              } else {
-                router.back();
-              }
+              handleNavigateBack();
             }
           }
         ]
@@ -242,50 +349,18 @@ const InputScreen: React.FC = () => {
             style: "destructive",
             onPress: () => {
               resetForm();
-              if (existingPayment) {
-                router.push("/(tabs)/overall-payment");
-              } else {
-                router.back();
-              }
+              handleNavigateBack();
             }
           }
         ]
       );
     } else {
-      if (existingPayment) {
-        router.push("/(tabs)/overall-payment");
-      } else {
-        router.back();
-      }
+      handleNavigateBack();
     }
   };
 
-  // Use useEffect to parse and set the existing payment data
-  useEffect(() => {
-    if (params.existingPayment) {
-      try {
-        const payment = JSON.parse(params.existingPayment as string) as Payment;
-        setExistingPayment(payment);
-        setTitle(payment.title || '');
-        setWhoPaid(payment.whoPaid);
-        setAmountType(payment.amountType as 'total' | 'specify');
-        setDate(new Date(payment.paymentDatetime)); // This preserves the full timestamp precision
 
-        if (payment.amountType === 'total') {
-          setTotalAmount(payment.amount.toString());
-        } else {
-          setSpecificAmount(payment.amount.toString());
-        }
-      } catch (error) {
-        console.error('Error parsing existing payment:', error);
-        Toast.show({
-          type: 'error',
-          text1: 'Error',
-          text2: 'Failed to load payment details',
-        });
-      }
-    }
-  }, [params.existingPayment]);
+
 
   async function handleSubmit(event: GestureResponderEvent): Promise<void> {
     if (isSubmitting) return;
@@ -297,8 +372,8 @@ const InputScreen: React.FC = () => {
         : parseFloat(specificAmount);
 
       if (!whoPaid || !numericAmount || numericAmount <= 0) {
+        Alert.alert('Invalid Input!', 'Please fill in the amount.');
         setIsSubmitting(false);
-        Alert.alert('Hey!', 'Please fill in the $$$');
         return;
       }
 
@@ -306,649 +381,719 @@ const InputScreen: React.FC = () => {
         title: title || 'Untitled',
         whoPaid,
         amount: numericAmount,
-        amountType: amountType,
+        amountType: amountType as 'total' | 'specify',
         paymentDatetime: date.getTime(),
       };
 
-      try {
-        // Try sending the payment to the API
-        if (existingPayment?.id) {
+      // --- Logic for an EXISTING payment (update) remains the same ---
+      if (existingPayment) {
+        try {
           await APIService.updatePayment(existingPayment.id, paymentData);
-          Toast.show({
-            type: 'success',
-            text1: 'Success',
-            text2: 'Payment updated successfully',
-            position: 'bottom',
-          });
-        } else {
-          await APIService.savePayment(paymentData);
-          Toast.show({
-            type: 'success',
-            text1: 'Success',
-            text2: 'Payment uploaded successfully',
-            position: 'bottom',
-          });
+          Toast.show({ type: 'success', text1: 'Success', text2: 'Payment updated successfully', position: 'bottom' });
+          resetForm();
+          router.push("/(tabs)/overall-payment");
+          emitter.emit('paymentsUpdated');
+        } catch (error) {
+          console.error('Update failed:', error);
+          Toast.show({ type: 'error', text1: 'Error', text2: 'Failed to update payment.', position: 'bottom' });
+        } finally {
+          setIsSubmitting(false);
         }
+        return; // Stop here for existing payments
+      }
 
-        // If API save was successful, navigate back
-        resetForm();
-        router.push({
-          pathname: "/(tabs)/overall-payment",
-          params: { timestamp: Date.now() }
+      // --- Logic for a NEW payment ---
+      try {
+        // Attempt a quick initial upload
+        await APIService.savePayment(paymentData, 2000); // 2-second timeout
+
+        Toast.show({
+          type: 'success',
+          text1: 'Success',
+          text2: `Payment '${title || 'Untitled'}' uploaded successfully`,
+          position: 'bottom',
         });
 
+        resetForm();
+        router.push("/(tabs)/overall-payment");
+
       } catch (error) {
-        // If API call fails, save locally
-        console.error('API call failed, saving payment locally:', error);
+        console.log('Initial upload failed, saving locally and queuing:', error);
 
-        try {
-          const savedLocalPayment = await StorageUtils.savePayment(paymentData);
+        // Save locally and get the newly created payment object with its ID
+        const newLocalPayment = await StorageUtils.savePayment(paymentData);
 
-          Toast.show({
-            type: 'info',
-            text1: 'Offline Mode',
-            text2: 'Could not connect to server. Payment saved locally.',
-            position: 'bottom',
-          });
+        // Add the new payment's ID to the background upload queue
+        await StorageUtils.addToUploadQueue(newLocalPayment.id);
 
-          // Navigate with local payment ID
-          resetForm();
-          router.push({
-            pathname: "/(tabs)/overall-payment",
-            params: {
-              newLocalPaymentId: savedLocalPayment.id,
-              timestamp: Date.now()
-            }
-          });
-        } catch (localError) {
-          console.error('Error saving payment locally:', localError);
-          Toast.show({
-            type: 'error',
-            text1: 'Error',
-            text2: 'Failed to save payment locally',
-            position: 'bottom',
-          });
-        }
+        Toast.show({
+          type: 'info',
+          text1: 'Saved Locally',
+          text2: 'Payment has been queued for upload.',
+          position: 'bottom',
+        });
+
+        // Navigate away after queuing
+        resetForm();
+        router.push("/(tabs)/overall-payment");
       }
 
     } catch (error) {
       console.error('Submit Error:', error);
-      Toast.show({
-        type: 'error',
-        text1: 'Error',
-        text2: 'Failed to save payment. Please try again.',
-        position: 'bottom',
-      });
+      Toast.show({ type: 'error', text1: 'Error', text2: 'Failed to save payment.', position: 'bottom' });
     } finally {
       setIsSubmitting(false);
     }
   }
 
+
+  async function handlePaymentUpload(paymentId: string): Promise<void> {
+    try {
+      const payments = await StorageUtils.getStoredPayments();
+      const payment = payments.find(p => p.id === paymentId);
+
+      if (!payment) {
+        console.log('Payment not found for upload');
+        return;
+      }
+
+      const paymentData = {
+        title: payment.title,
+        whoPaid: payment.whoPaid,
+        amount: payment.amount,
+        amountType: payment.amountType,
+        paymentDatetime: payment.paymentDatetime,
+      };
+      await APIService.savePayment(paymentData, 30000);
+
+      // If successful, remove from local storage and retry status
+      await StorageUtils.deletePayment(paymentId);
+      await StorageUtils.setRetryStatus(paymentId, false);
+
+      const formattedTime = new Date(date.getTime()).toLocaleString([], {
+        year: 'numeric',
+        day: '2-digit',
+        month: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+      });
+
+      Toast.show({
+        type: 'success',
+        text1: 'Success',
+        text2: `${title || 'Untitled'} (${formattedTime}) uploaded successfully`,
+        position: 'bottom',
+      });
+
+      // Process next queued item if any
+      const queue = await StorageUtils.getUploadQueue();
+      if (queue.length > 0) {
+        const nextPaymentId = queue[0];
+        await StorageUtils.removeFromUploadQueue(nextPaymentId);
+        await StorageUtils.setRetryStatus(nextPaymentId, true);
+        handlePaymentUpload(nextPaymentId);
+      }
+
+      emitter.emit('paymentsUpdated');
+
+    } catch (error) {
+      console.error('Upload retry failed:', error);
+
+      // Schedule another retry
+      await StorageUtils.setRetryStatus(paymentId, false);
+      setTimeout(async () => {
+        const isStillLocal = (await StorageUtils.getStoredPayments()).some(p => p.id === paymentId);
+        if (isStillLocal) {
+          await StorageUtils.setRetryStatus(paymentId, true);
+          handlePaymentUpload(paymentId);
+        }
+      }, 12000);
+    }
+  }
+
+  const styles = StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    amountTypeContainer: {
+      flexDirection: 'row',
+      gap: 12,
+      marginBottom: 10,
+    },
+    amountTypeBox: {
+      flex: 1,
+      backgroundColor: 'transparent',
+      borderRadius: 12,
+      padding: 10,
+      alignItems: 'center',
+      borderWidth: 1.5,
+      borderColor: `${colors.text}35`,
+    },
+    selectedAmountTypeBox: {
+      backgroundColor: `${PRIMARY_COLOR}10`,
+      borderColor: PRIMARY_COLOR,
+      borderWidth: 2.5,
+    },
+    iconCircle: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: '#E5E7EB',
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginBottom: 8,
+    },
+    selectedIconCircle: {
+      backgroundColor: PRIMARY_COLOR,
+    },
+    amountTypeTitle: {
+      fontWeight: '600',
+      color: colors.text,
+      marginBottom: 2,
+      textAlign: 'center',
+    },
+    selectedAmountTypeTitle: {
+      color: PRIMARY_COLOR,
+    },
+    amountTypeDescription: {
+      fontSize: 11,
+      color: `${colors.text}95`,
+      textAlign: 'center',
+    },
+    selectedAmountTypeDescription: {
+      color: PRIMARY_COLOR,
+    },
+    amountInputContainer: {
+      marginTop: 8,
+      backgroundColor: colors.card,
+      borderRadius: 12,
+      elevation: 1
+    },
+    inputWrapper: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.card,
+      borderRadius: 12,
+      borderWidth: 0.5,
+      borderColor: '#E0E0E0',
+      shadowColor: '#000',
+      shadowOffset: {
+        width: 0,
+        height: 1,
+      },
+      shadowOpacity: 0.1,
+      shadowRadius: 2,
+      elevation: 2,
+    },
+    currencySymbol: {
+      paddingLeft: 16,
+      fontSize: 18,
+      color: '#374151',
+      fontWeight: '500',
+    },
+    input: {
+      flex: 1,
+      padding: 16,
+      fontSize: 16,
+      color: colors.text,
+    },
+    amountInput: {
+      textAlign: 'left',
+    },
+    amountTypeOuterContainer: {
+      position: 'relative',
+      flexDirection: 'row',
+      backgroundColor: '#F3F4F6',
+      borderRadius: 16,
+      padding: 4,
+      marginBottom: 18,
+      height: 80,
+    },
+    amountTypeSlider: {
+      position: 'absolute',
+      width: '50%',
+      height: '100%',
+      backgroundColor: PRIMARY_COLOR,
+      borderRadius: 12,
+      shadowColor: '#000',
+      shadowOffset: {
+        width: 0,
+        height: 2,
+      },
+      shadowOpacity: 0.1,
+      shadowRadius: 3,
+      elevation: 2,
+    },
+    amountTypeButton: {
+      flex: 1,
+      justifyContent: 'center',
+      zIndex: 1,
+    },
+    amountTypeContent: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 16,
+      gap: 12,
+    },
+    amountTypeTextContainer: {
+      flex: 1,
+    },
+    amountTypeText: {
+      fontSize: 16,
+      fontWeight: '600',
+      marginBottom: 2,
+    },
+    amountTypeSubtext: {
+      fontSize: 12,
+    },
+    selectedAmountTypeText: {
+      color: 'white',
+    },
+    selectedAmountTypeSubtext: {
+      color: 'rgba(255, 255, 255, 0.8)',
+    },
+    unselectedAmountTypeText: {
+      color: '#374151',
+    },
+    unselectedAmountTypeSubtext: {
+      color: '#6B7280',
+    },
+    formContainer: {
+      paddingHorizontal: 20,
+      paddingVertical: 12,
+    },
+    inputGroup: {
+      marginBottom: 14,
+    },
+    inputGroupAmount: {
+      marginBottom: 20,
+    },
+    label: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: colors.text,
+      marginBottom: 6,
+    },
+    dateButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      padding: 13,
+      backgroundColor: colors.card,
+      borderRadius: 12,
+      borderWidth: 0.5,
+      borderColor: '#E0E0E0',
+      elevation: 2
+    },
+    dateText: {
+      fontSize: 16,
+      color: colors.text
+    },
+    payerButtons: {
+      flexDirection: 'row',
+      justifyContent: 'space-around',
+      paddingHorizontal: 20,
+      marginTop: 8,
+    },
+    payerButton: {
+      alignItems: 'center',
+      gap: 8,
+    },
+    payerCircle: {
+      width: 50,
+      height: 50,
+      borderRadius: 32,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      shadowColor: '#000',
+      shadowOffset: {
+        width: 0,
+        height: 1,
+      },
+      shadowOpacity: 0.1,
+      shadowRadius: 3,
+      elevation: 2,
+    },
+    activePayerCircle: {
+      backgroundColor: USER_COLORS[0],
+      borderColor: USER_COLORS[0],
+    },
+    inactivePayerCircle: {
+      backgroundColor: colors.background,
+      borderColor: '#9CA3AF',
+    },
+    payerText: {
+      fontSize: 16,
+      marginTop: 4,
+    },
+    activePayerText: {
+      color: PRIMARY_COLOR,
+      fontWeight: '600',
+    },
+    inactivePayerText: {
+      color: '#9CA3AF',
+    },
+    imageButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: '#34C759',
+      padding: 15,
+      borderRadius: 12,
+      gap: 8,
+    },
+    imageButtonText: {
+      color: 'white',
+      fontSize: 16,
+      fontWeight: '500',
+    },
+    imageContainer: {
+      marginTop: 12,
+      borderRadius: 12,
+      overflow: 'hidden',
+    },
+    image: {
+      width: '100%',
+      height: 200,
+      borderRadius: 12,
+    },
+    screenTitle: {
+      fontSize: 24,
+      fontWeight: 'bold',
+      marginBottom: 16,
+      color: '#333',
+    },
+    buttonContainer: {
+      flexDirection: 'row',
+      gap: 12,
+      marginTop: 20,
+    },
+    button: {
+      flex: 1,
+      padding: 16,
+      borderRadius: 12,
+      alignItems: 'center',
+    },
+    submitButton: {
+      backgroundColor: PRIMARY_COLOR,
+      padding: 16,
+      borderRadius: 12,
+      alignItems: 'center',
+      marginBottom: 12,
+      width: '100%',
+      elevation: 2
+    },
+    submitButtonText: {
+      color: 'white',
+      fontSize: 16,
+      fontWeight: '600',
+    },
+    cancelButton: {
+      backgroundColor: colors.background,
+      padding: 16,
+      borderRadius: 12,
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: PRIMARY_COLOR,
+      width: '100%',
+    },
+    cancelButtonText: {
+      color: PRIMARY_COLOR,
+      fontSize: 16,
+      fontWeight: '600',
+    },
+    dateTimeContainer: {
+      flexDirection: 'row',
+      gap: 12,
+    },
+    dateTimeButton: {
+      flex: 1,
+    },
+    pageContainer: {
+      flex: 1,
+      backgroundColor: '#f5f5f5',
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 6,
+      paddingTop: Platform.OS === 'ios' ? 6 : 10,
+      paddingBottom: 0,
+      backgroundColor: colors.bottomTabBar,
+      borderBottomColor: '#E0E0E0',
+    },
+    backButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      padding: 8,
+    },
+    backButtonText: {
+      color: PRIMARY_COLOR,
+      fontSize: 17,
+      marginLeft: 4,
+    },
+    headerTitle: {
+      fontSize: 17,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    headerRightPlaceholder: {
+      width: 80,
+    },
+    selectedAmountType: {
+      backgroundColor: PRIMARY_COLOR,
+      borderColor: PRIMARY_COLOR,
+    },
+    unselectedAmountType: {
+      backgroundColor: 'white',
+      borderColor: '#E5E7EB',
+    },
+  });
+
   return (
-    <View style={styles.pageContainer}>
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={handleCancel}
-        >
-          <Ionicons name="chevron-back" size={24} color="#007AFF" />
-          <Text style={styles.backButtonText}>Back</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>
-          {existingPayment ? 'Edit Payment' : 'New Payment'}
-        </Text>
-        <View style={styles.headerRightPlaceholder} />
-      </View>
-      <ScrollView style={styles.container}>
-        <View style={styles.formContainer}>
-          {/* 1. Date Section */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Date and Time</Text>
-            <View style={styles.dateTimeContainer}>
-              <TouchableOpacity
-                style={[styles.dateButton, styles.dateTimeButton]}
-                onPress={() => setShowDatePicker(true)}
-              >
-                <Text style={styles.dateText}>{date.toLocaleDateString()}</Text>
-                <Ionicons name="calendar" size={24} color={PRIMARY_COLOR} />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.dateButton, styles.dateTimeButton]}
-                onPress={() => setShowTimePicker(true)}
-              >
-                <Text style={styles.dateText}>
-                  {date.toLocaleTimeString([], {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    second: '2-digit'
-                  })}
-                </Text>
-                <Ionicons name="time" size={24} color={PRIMARY_COLOR} />
-              </TouchableOpacity>
-            </View>
-
-            {showDatePicker && (
-              <DateTimePicker
-                value={date}
-                mode="date"
-                onChange={(event, selectedDate) => {
-                  setShowDatePicker(false);
-                  if (selectedDate) setDate(selectedDate);
-                }}
-              />
-            )}
-
-            {showTimePicker && (
-              <DateTimePicker
-                value={date}
-                mode="time"
-                onChange={(event, selectedDate) => {
-                  setShowTimePicker(false);
-                  if (selectedDate) setDate(selectedDate);
-                }}
-              />
-            )}
-          </View>
-
-          {/* 4. Description Section */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Title</Text>
-            <View style={styles.inputWrapper}>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter a Title"
-                placeholderTextColor="#9CA3AF"
-                value={title}
-                onChangeText={setTitle}
-              />
-            </View>
-          </View>
-
-          {/* Who Paid Section */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Who paid?</Text>
-            <View style={styles.payerButtons}>
-              {users.map((payer) => (
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: colors.background }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={headerHeight}
+    >
+      <View style={styles.pageContainer}>
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={handleCancel}
+          >
+            <Ionicons name="chevron-back" size={24} color="#007AFF" />
+            <Text style={styles.backButtonText}>Back</Text>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>
+            {existingPayment ? 'Edit Payment' : 'New Payment'}
+          </Text>
+          <View style={styles.headerRightPlaceholder} />
+        </View>
+        <ScrollView style={styles.container}>
+          <View style={styles.formContainer}>
+            {/* 1. Date Section */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Date and Time</Text>
+              <View style={styles.dateTimeContainer}>
                 <TouchableOpacity
-                  key={payer}
-                  style={styles.payerButton}
-                  onPress={() => setWhoPaid(payer)}
+                  style={[styles.dateButton, styles.dateTimeButton]}
+                  onPress={() => setShowDatePicker(true)}
                 >
-                  <View style={[
-                    styles.payerCircle,
-                    whoPaid === payer
-                      ? {
-                        backgroundColor: USER_COLORS[users.indexOf(payer)],
-                        borderColor: USER_COLORS[users.indexOf(payer)]
-                      }
-                      : styles.inactivePayerCircle
-                  ]}>
-                    <Ionicons
-                      name={whoPaid === payer ? "person" : "person-outline"}
-                      size={28}
-                      color={whoPaid === payer ? 'white' : '#9CA3AF'}
-                    />
-                  </View>
-                  <Text style={[
-                    styles.payerText,
-                    whoPaid === payer
-                      ? { color: USER_COLORS[users.indexOf(payer)], fontWeight: '600' }
-                      : styles.inactivePayerText
-                  ]}>
-                    {payer}
-                  </Text>
+                  <Text style={styles.dateText}>{date.toLocaleDateString()}</Text>
+                  <Ionicons name="calendar" size={24} color={PRIMARY_COLOR} />
                 </TouchableOpacity>
-              ))}
-            </View>
-          </View>
 
-          <View style={styles.inputGroupAmount}>
-            <Text style={styles.label}>Amount Type</Text>
-            <View style={styles.amountTypeContainer}>
-              <TouchableOpacity
-                style={[
-                  styles.amountTypeBox,
-                  amountType === 'total' && styles.selectedAmountTypeBox
-                ]}
-                onPress={() => handleAmountTypeSelect('total')}
-              >
-                <View style={[
-                  styles.iconCircle,
-                  amountType === 'total' && styles.selectedIconCircle
-                ]}>
-                  <Ionicons
-                    name="wallet-outline"
-                    size={20}
-                    color={amountType === 'total' ? 'white' : '#6B7280'}
-                  />
-                </View>
-                <Text style={[
-                  styles.amountTypeTitle,
-                  amountType === 'total' && styles.selectedAmountTypeTitle
-                ]}>
-                  Total Amount
-                </Text>
-                <Text style={[
-                  styles.amountTypeDescription,
-                  amountType === 'total' && styles.selectedAmountTypeDescription
-                ]}>
-                  Split equally
-                </Text>
-              </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.dateButton, styles.dateTimeButton]}
+                  onPress={() => setShowTimePicker(true)}
+                >
+                  <Text style={styles.dateText}>
+                    {date.toLocaleTimeString([], {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      second: '2-digit',
+                      hour12: false,
+                    })}
+                  </Text>
+                  <Ionicons name="time" size={24} color={PRIMARY_COLOR} />
+                </TouchableOpacity>
+              </View>
 
-              <TouchableOpacity
-                style={[
-                  styles.amountTypeBox,
-                  amountType === 'specify' && styles.selectedAmountTypeBox
-                ]}
-                onPress={() => handleAmountTypeSelect('specify')}
-              >
-                <View style={[
-                  styles.iconCircle,
-                  amountType === 'specify' && styles.selectedIconCircle
-                ]}>
-                  <Ionicons
-                    name="git-branch-outline"
-                    size={20}
-                    color={amountType === 'specify' ? 'white' : '#6B7280'}
-                  />
-                </View>
-                <Text style={[
-                  styles.amountTypeTitle,
-                  amountType === 'specify' && styles.selectedAmountTypeTitle
-                ]}>
-                  Specific Amount
-                </Text>
-                <Text style={[
-                  styles.amountTypeDescription,
-                  amountType === 'specify' && styles.selectedAmountTypeDescription
-                ]}>
-                  Paid for another one
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.amountInputContainer}>
-              {amountType === 'total' ? (
-                <AmountInput
-                  value={totalAmount}
-                  onChange={setTotalAmount}
-                  placeholder="Enter total amount to split"
+              {showDatePicker && (
+                <DateTimePicker
+                  value={date}
+                  mode="date"
+                  onChange={(event, selectedDate) => {
+                    setShowDatePicker(false);
+                    if (selectedDate) setDate(selectedDate);
+                  }}
                 />
-              ) : (
-                <AmountInput
-                  value={specificAmount}
-                  onChange={setSpecificAmount}
-                  placeholder="Enter amount you pay for other"
+              )}
+              {showTimePicker && (
+                <DateTimePicker
+                  value={date}
+                  mode="time"
+                  is24Hour={true}
+                  onChange={(event, selectedDate) => {
+                    setShowTimePicker(false);
+                    if (selectedDate) setDate(selectedDate);
+                  }}
                 />
               )}
             </View>
+
+            {/* 4. Description Section */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Title</Text>
+              <View style={styles.inputWrapper}>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter a Title"
+                  placeholderTextColor="#9CA3AF"
+                  value={title}
+                  onChangeText={setTitle}
+                />
+              </View>
+            </View>
+
+            {/* Who Paid Section */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Who paid?</Text>
+              <View style={styles.payerButtons}>
+                {users.map((payer) => (
+                  <TouchableOpacity
+                    key={payer}
+                    style={styles.payerButton}
+                    onPress={() => setWhoPaid(payer)}
+                  >
+                    <View style={[
+                      styles.payerCircle,
+                      whoPaid === payer
+                        ? {
+                          backgroundColor: USER_COLORS[users.indexOf(payer)],
+                          borderColor: USER_COLORS[users.indexOf(payer)]
+                        }
+                        : styles.inactivePayerCircle
+                    ]}>
+                      <Ionicons
+                        name={whoPaid === payer ? "person" : "person-outline"}
+                        size={28}
+                        color={whoPaid === payer ? 'white' : '#9CA3AF'}
+                      />
+                    </View>
+                    <Text style={[
+                      styles.payerText,
+                      whoPaid === payer
+                        ? { color: USER_COLORS[users.indexOf(payer)], fontWeight: '600' }
+                        : styles.inactivePayerText
+                    ]}>
+                      {payer}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            <View style={styles.inputGroupAmount}>
+              <Text style={styles.label}>Amount Type</Text>
+              <View style={styles.amountTypeContainer}>
+                <TouchableOpacity
+                  style={[
+                    styles.amountTypeBox,
+                    amountType === 'total' && styles.selectedAmountTypeBox
+                  ]}
+                  onPress={() => handleAmountTypeSelect('total')}
+                >
+                  <View style={[
+                    styles.iconCircle,
+                    amountType === 'total' && styles.selectedIconCircle
+
+                  ]}>
+                    <Ionicons
+                      name="wallet-outline"
+                      size={20}
+                      color={amountType === 'total' ? 'white' : '#6B7280'}
+                    />
+                  </View>
+                  <Text style={[
+                    styles.amountTypeTitle,
+                    amountType === 'total' && styles.selectedAmountTypeTitle
+                  ]}>
+                    Total Amount
+                  </Text>
+                  <Text style={[
+                    styles.amountTypeDescription,
+                    amountType === 'total' && styles.selectedAmountTypeDescription
+                  ]}>
+                    Split equally
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.amountTypeBox,
+                    amountType === 'specify' && styles.selectedAmountTypeBox
+                  ]}
+                  onPress={() => handleAmountTypeSelect('specify')}
+                >
+                  <View style={[
+                    styles.iconCircle,
+                    amountType === 'specify' && styles.selectedIconCircle
+                  ]}>
+                    <Ionicons
+                      name="git-branch-outline"
+                      size={20}
+                      color={amountType === 'specify' ? 'white' : '#6B7280'}
+                    />
+                  </View>
+                  <Text style={[
+                    styles.amountTypeTitle,
+                    amountType === 'specify' && styles.selectedAmountTypeTitle
+                  ]}>
+                    Specific Amount
+                  </Text>
+                  <Text style={[
+                    styles.amountTypeDescription,
+                    amountType === 'specify' && styles.selectedAmountTypeDescription
+                  ]}>
+                    Paid for another one
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.amountInputContainer}>
+                {amountType === 'total' ? (
+                  <AmountInput
+                    value={totalAmount}
+                    onChange={setTotalAmount}
+                    placeholder="Enter total amount to split"
+                  />
+                ) : (
+                  <AmountInput
+                    value={specificAmount}
+                    onChange={setSpecificAmount}
+                    placeholder="Enter amount you pay for other"
+                  />
+                )}
+              </View>
+            </View>
+
+            {/* 5. Save/Update Expense Button */}
+            <TouchableOpacity
+              style={styles.submitButton}
+              onPress={handleSubmit}
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? (
+                <ActivityIndicator color="white" />
+              ) : (
+                <Text style={styles.submitButtonText}>
+                  {existingPayment ? 'Update Expense' : 'Save Expense'}
+                </Text>
+              )}
+            </TouchableOpacity>
+
+            {/* 6. Cancel Button */}
+            <TouchableOpacity
+              style={styles.cancelButton}
+              onPress={handleCancel}
+              disabled={isSubmitting}
+            >
+              <Text style={styles.cancelButtonText}>Cancel</Text>
+            </TouchableOpacity>
           </View>
-
-          {/* 5. Save/Update Expense Button */}
-          <TouchableOpacity
-            style={styles.submitButton}
-            onPress={handleSubmit}
-            disabled={isSubmitting}
-          >
-            {isSubmitting ? (
-              <ActivityIndicator color="white" />
-            ) : (
-              <Text style={styles.submitButtonText}>
-                {existingPayment ? 'Update Expense' : 'Save Expense'}
-              </Text>
-            )}
-          </TouchableOpacity>
-
-          {/* 6. Cancel Button */}
-          <TouchableOpacity
-            style={styles.cancelButton}
-            onPress={handleCancel}
-          >
-            <Text style={styles.cancelButtonText}>Cancel</Text>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-    </View>
+        </ScrollView>
+      </View>
+    </KeyboardAvoidingView>
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-  },
-  amountTypeContainer: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 10,
-  },
-  amountTypeBox: {
-    flex: 1,
-    backgroundColor: '#F3F4F6',
-    borderRadius: 12,
-    padding: 10,
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#F3F4F6',
-  },
-  selectedAmountTypeBox: {
-    backgroundColor: `${PRIMARY_COLOR}10`,
-    borderColor: PRIMARY_COLOR,
-  },
-  iconCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#E5E7EB',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  selectedIconCircle: {
-    backgroundColor: PRIMARY_COLOR,
-  },
-  amountTypeTitle: {
-    fontWeight: '600',
-    color: '#374151',
-    marginBottom: 2,
-    textAlign: 'center',
-  },
-  selectedAmountTypeTitle: {
-    color: PRIMARY_COLOR,
-  },
-  amountTypeDescription: {
-    fontSize: 11,
-    color: '#6B7280',
-    textAlign: 'center',
-  },
-  selectedAmountTypeDescription: {
-    color: PRIMARY_COLOR,
-  },
-  amountInputContainer: {
-    marginTop: 8,
-  },
-  inputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'white',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  currencySymbol: {
-    paddingLeft: 16,
-    fontSize: 18,
-    color: '#374151',
-    fontWeight: '500',
-  },
-  input: {
-    flex: 1,
-    padding: 16,
-    fontSize: 16,
-    color: '#374151',
-  },
-  amountInput: {
-    textAlign: 'left',
-  },
-  amountTypeOuterContainer: {
-    position: 'relative',
-    flexDirection: 'row',
-    backgroundColor: '#F3F4F6',
-    borderRadius: 16,
-    padding: 4,
-    marginBottom: 18,
-    height: 80,
-  },
-  amountTypeSlider: {
-    position: 'absolute',
-    width: '50%',
-    height: '100%',
-    backgroundColor: PRIMARY_COLOR,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  amountTypeButton: {
-    flex: 1,
-    justifyContent: 'center',
-    zIndex: 1,
-  },
-  amountTypeContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    gap: 12,
-  },
-  amountTypeTextContainer: {
-    flex: 1,
-  },
-  amountTypeText: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 2,
-  },
-  amountTypeSubtext: {
-    fontSize: 12,
-  },
-  selectedAmountTypeText: {
-    color: 'white',
-  },
-  selectedAmountTypeSubtext: {
-    color: 'rgba(255, 255, 255, 0.8)',
-  },
-  unselectedAmountTypeText: {
-    color: '#374151',
-  },
-  unselectedAmountTypeSubtext: {
-    color: '#6B7280',
-  },
-  formContainer: {
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-  },
-  inputGroup: {
-    marginBottom: 14,
-  },
-  inputGroupAmount: {
-    marginBottom: 20,
-  },
-  label: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 6,
-  },
-  dateButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 13,
-    backgroundColor: 'white',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-  },
-  dateText: {
-    fontSize: 16,
-    color: '#333',
-  },
-  payerButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingHorizontal: 20,
-    marginTop: 8,
-  },
-  payerButton: {
-    alignItems: 'center',
-    gap: 8,
-  },
-  payerCircle: {
-    width: 50,
-    height: 50,
-    borderRadius: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  activePayerCircle: {
-    backgroundColor: USER_COLORS[0],
-    borderColor: USER_COLORS[0],
-  },
-  inactivePayerCircle: {
-    backgroundColor: 'white',
-    borderColor: '#9CA3AF',
-  },
-  payerText: {
-    fontSize: 16,
-    marginTop: 4,
-  },
-  activePayerText: {
-    color: PRIMARY_COLOR,
-    fontWeight: '600',
-  },
-  inactivePayerText: {
-    color: '#9CA3AF',
-  },
-  imageButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#34C759',
-    padding: 15,
-    borderRadius: 12,
-    gap: 8,
-  },
-  imageButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  imageContainer: {
-    marginTop: 12,
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  image: {
-    width: '100%',
-    height: 200,
-    borderRadius: 12,
-  },
-  screenTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 16,
-    color: '#333',
-  },
-  buttonContainer: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 20,
-  },
-  button: {
-    flex: 1,
-    padding: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  submitButton: {
-    backgroundColor: PRIMARY_COLOR,
-    padding: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-    marginBottom: 12,
-    width: '100%',
-  },
-  submitButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  cancelButton: {
-    backgroundColor: '#f5f5f5',
-    padding: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: PRIMARY_COLOR,
-    width: '100%',
-  },
-  cancelButtonText: {
-    color: PRIMARY_COLOR,
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  dateTimeContainer: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  dateTimeButton: {
-    flex: 1,
-  },
-  pageContainer: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 6,
-    paddingTop: Platform.OS === 'ios' ? 6 : 10,
-    paddingBottom: 0,
-    backgroundColor: '#f5f5f5',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
-  },
-  backButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 8,
-  },
-  backButtonText: {
-    color: PRIMARY_COLOR,
-    fontSize: 17,
-    marginLeft: 4,
-  },
-  headerTitle: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: '#000',
-  },
-  headerRightPlaceholder: {
-    width: 80,
-  },
-  selectedAmountType: {
-    backgroundColor: PRIMARY_COLOR,
-    borderColor: PRIMARY_COLOR,
-  },
-  unselectedAmountType: {
-    backgroundColor: 'white',
-    borderColor: '#E5E7EB',
-  },
-});
+
 
 export default InputScreen;
