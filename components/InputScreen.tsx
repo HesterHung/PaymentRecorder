@@ -993,6 +993,7 @@ const InputScreen: React.FC = () => {
                   <View style={[
                     styles.iconCircle,
                     amountType === 'total' && styles.selectedIconCircle
+
                   ]}>
                     <Ionicons
                       name="wallet-outline"

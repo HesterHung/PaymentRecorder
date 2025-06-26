@@ -256,7 +256,7 @@ const OverallPayment: React.FC = () => {
       const loadData = async () => {
         try {
           // Load local data first
-          await loadLocalReceipts();
+          await loadReceipts();
           // Then load API data
           await loadApiReceipts();
           renderLocalPayments();
@@ -581,15 +581,29 @@ const OverallPayment: React.FC = () => {
     setIsBalanceVisible(!isBalanceVisible);
   };
 
-  const handlePaymentPress = (payment: Payment) => {
+  const handlePaymentPress = async (payment: Payment) => {
+    // Check if the payment is saved locally
+    const isLocal = localPayments.has(payment.id);
+
+    if (isLocal) {
+      // Show a toast or alert informing the user that local payments can't be edited
+      Toast.show({
+        type: 'info',
+        text1: 'Cannot Edit Local Payment',
+        text2: 'Please upload this payment to the server first before editing.',
+        position: 'bottom',
+      });
+      return;
+    }
+
     console.log('Payment being passed:', payment);
     try {
-      // Clear any existing params before navigation
       router.push({
         pathname: "/(tabs)/standard-input",
         params: {
           existingPayment: JSON.stringify({
             ...payment,
+            
           })
         }
       });
