@@ -101,55 +101,6 @@ const OverallPayment: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    let isMounted = true;
-
-    const checkRetryAndQueue = async () => {
-      if (!isMounted) return;
-
-      // ✨ THE GATE: If API is not available, do nothing.
-      if (!isApiAvailable) {
-        console.log('API not available, skipping queue check.');
-        return;
-      }
-
-      try {
-        const retryStatus = await StorageUtils.getRetryStatus();
-        const isAnyRetrying = Object.values(retryStatus).some(status => status === true);
-
-        if (!isAnyRetrying) {
-          const queue = await StorageUtils.getUploadQueue();
-          if (queue.length > 0) {
-            const nextPaymentId = queue[0];
-            console.log(`API is available, processing next item from queue: ${nextPaymentId}`);
-
-            // --- ATOMIC-LIKE OPERATION ---
-            await StorageUtils.setRetryStatus(nextPaymentId, true);
-            await StorageUtils.removeFromUploadQueue(nextPaymentId);
-
-            const payments = await StorageUtils.getStoredPayments();
-            const paymentToUpload = payments.find(p => p.id === nextPaymentId);
-
-            if (paymentToUpload) {
-              await handlePaymentUpload(paymentToUpload);
-            } else {
-              await StorageUtils.setRetryStatus(nextPaymentId, false);
-            }
-          }
-        }
-      } catch (error) {
-        console.error('Error in checkRetryAndQueue:', error);
-      }
-    };
-
-    const intervalId = setInterval(checkRetryAndQueue, 20000);
-
-    return () => {
-      isMounted = false;
-      clearInterval(intervalId);
-    };
-  }, [isApiAvailable]);
-
-  useEffect(() => {
     const loadLastFetchedData = async () => {
       try {
         const lastApiPayments = await StorageUtils.getLastApiPayments();
@@ -256,10 +207,9 @@ const OverallPayment: React.FC = () => {
       const loadData = async () => {
         try {
           // Load local data first
-          await loadReceipts();
+          await loadLocalReceipts();
           // Then load API data
           await loadApiReceipts();
-          renderLocalPayments();
         } catch (error) {
           console.error('Error in loadData:', error);
         }
@@ -829,7 +779,7 @@ const OverallPayment: React.FC = () => {
 
       // ---- FAILURE ----
       await StorageUtils.setRetryStatus(payment.id, false);
-      await StorageUtils.addToUploadQueue(payment.id);
+      // await StorageUtils.addToUploadQueue(payment.id);
 
       await StorageUtils.addUploadHistory({
         paymentId: payment.id,
