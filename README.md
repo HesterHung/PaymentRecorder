@@ -1,51 +1,51 @@
-# Welcome to your Expo app 👋
+# Shared Expense Splitter
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+A cross-platform mobile application built with React Native for managing shared expenses between two users.
 
-## Get started
+## Overview
 
-1. Install dependencies
+Shared Expense Splitter simplifies expense sharing by allowing two users to record expenses, automatically split costs, and keep balances synchronized across devices.
 
-   ```bash
-   npm install
-   ```
+This project was developed as our personal product and is actively used in daily life.
 
-2. Start the app
+## Features
 
-   ```bash
-    npx expo start
-   ```
+- Record shared expenses
+- Automatic 50/50 expense splitting
+- Custom payment allocation
+- Running balance calculation
+- Monthly expense summary
+- Offline caching
+- Cloud synchronization
+- User switching
 
-In the output, you'll find options to open the app in a
+## Tech Stack
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+- React Native
+- TypeScript
+- Expo
+- Firebase Firestore
+- AsyncStorage
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+## Screenshots
 
-## Get a fresh project
+<div style="display: flex; gap: 10px; padding: 10px">
+  <img src="demo/images/home.jpg" width="400"/>
+  <img src="demo/images/users.jpg" width="400"/>
+</div>
+<div style="display: flex; gap: 10px; padding: 10px">
+  <img src="demo/images/payment-input.jpg" width="400"/>
+  <img src="demo/images/summary.jpg" width="400"/>
+</div>
 
-When you're ready, run:
+## Future Improvements
 
-```bash
-npm run reset-project
-```
+- Expense categories
+- Charts and analytics
+- Receipt attachment
+- Export transaction history
+- Multi-user support
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+## Status
 
-## Learn more
-
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
-# PaymentRecorder
+🚧 Actively maintained.
