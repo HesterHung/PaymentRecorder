@@ -1,6 +1,7 @@
 // services/api.ts
 
 import { Payment } from "@/types/payment";
+import BASE_URL from "../base_url.json";
 
 export interface PaymentPayload {
     title: string;
@@ -32,7 +33,7 @@ interface ApiResponse {
 }
 
 export class APIService {
-    private static BASE_URL = 'https://tr-cl4p.onrender.com/api';
+    private static BASE_URL = BASE_URL;
     private static DELAY_MS = 10000;
 
     private static async simulateDelay(delay: Boolean): Promise<void> {
